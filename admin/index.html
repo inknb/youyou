@@ -591,10 +591,178 @@
             gap: 12px;
             margin-top: 24px;
         }
+
+        /* 登录页面 */
+        .login-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .login-box {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border-radius: var(--radius-lg);
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: var(--shadow-soft);
+            border: 1px solid rgba(255,255,255,0.5);
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .login-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--primary-blue);
+            margin-bottom: 8px;
+        }
+
+        .login-subtitle {
+            color: var(--text-sub);
+            font-size: 0.9rem;
+        }
+
+        .login-form .form-group {
+            margin-bottom: 20px;
+        }
+
+        .login-footer {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .login-footer a {
+            color: var(--primary-blue);
+            text-decoration: none;
+        }
+
+        .login-footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* 用户信息栏 */
+        .user-info {
+            padding: 16px 20px;
+            background: linear-gradient(135deg, #eff6ff, #dbeafe);
+            border-radius: var(--radius-sm);
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-details {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .user-name {
+            font-weight: 600;
+            color: var(--primary-blue);
+        }
+
+        .user-last-login {
+            font-size: 0.75rem;
+            color: var(--text-sub);
+        }
+
+        .btn-logout {
+            background: transparent;
+            color: var(--danger);
+            border: 1px solid var(--danger);
+            padding: 8px 16px;
+        }
+
+        .btn-logout:hover {
+            background: var(--danger);
+            color: white;
+        }
+
+        /* 隐藏主布局 */
+        .admin-layout.hidden {
+            display: none;
+        }
+
+        /* 密码可见性切换 */
+        .password-group {
+            position: relative;
+        }
+
+        .password-input-wrapper {
+            position: relative;
+        }
+
+        .password-input-wrapper .form-input {
+            padding-right: 44px;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-sub);
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .password-toggle:hover {
+            color: var(--primary-blue);
+        }
     </style>
 </head>
 <body>
-    <div class="admin-layout">
+    <!-- 登录页面 -->
+    <div id="login-page" class="login-container">
+        <div class="login-box">
+            <div class="login-header">
+                <div class="login-title">管理员登录</div>
+                <div class="login-subtitle">悠悠の主页后台管理系统</div>
+            </div>
+            <form id="login-form" class="login-form">
+                <div class="form-group">
+                    <label class="form-label">用户名</label>
+                    <input type="text" class="form-input" name="username" placeholder="请输入用户名" required autocomplete="username">
+                </div>
+                <div class="form-group password-group">
+                    <label class="form-label">密码</label>
+                    <div class="password-input-wrapper">
+                        <input type="password" class="form-input" name="password" id="login-password" placeholder="请输入密码" required autocomplete="current-password">
+                        <button type="button" class="password-toggle" onclick="togglePasswordVisibility('login-password', this)">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;" id="login-btn">
+                    登 录
+                </button>
+            </form>
+            <div class="login-footer">
+                <a href="/">返回首页</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主布局 -->
+    <div class="admin-layout hidden" id="admin-layout">
         <!-- 侧边栏 -->
         <aside class="sidebar">
             <div class="sidebar-header">
@@ -645,8 +813,22 @@
                             <span>动态管理</span>
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-section="account">
+                            
+                            <span>账户设置</span>
+                        </a>
+                    </li>
                 </ul>
             </nav>
+            <!-- 用户信息 -->
+            <div class="user-info" id="user-info">
+                <div class="user-details">
+                    <span class="user-name" id="display-username">-</span>
+                    <span class="user-last-login" id="display-last-login">-</span>
+                </div>
+                <button class="btn btn-logout btn-sm" onclick="logout()">退出</button>
+            </div>
         </aside>
 
         <!-- 主内容 -->
@@ -903,10 +1085,75 @@
                                 <th>操作</th>
                             </tr>
                         </thead>
-                        <tbody id="activity-table-body">
+                    <tbody id="activity-table-body">
                             <!-- 动态加载 -->
                         </tbody>
                     </table>
+                </div>
+            </section>
+
+            <!-- 账户设置 -->
+            <section id="account" class="section">
+                <div class="page-header">
+                    <h1 class="page-title">账户设置</h1>
+                    <p class="page-desc">修改管理员账户信息</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">修改账户信息</h3>
+                    </div>
+                    <form id="account-form">
+                        <div class="form-group">
+                            <label class="form-label">用户名</label>
+                            <input type="text" class="form-input" name="username" id="account-username" placeholder="请输入新用户名" minlength="3">
+                            <small style="color: var(--text-sub); display: block; margin-top: 4px; font-size: 0.8rem;">用户名至少3个字符，留空则不修改</small>
+                        </div>
+                        <div class="form-group password-group">
+                            <label class="form-label">当前密码 <span style="color: var(--danger);">*</span></label>
+                            <div class="password-input-wrapper">
+                                <input type="password" class="form-input" name="oldPassword" id="account-old-password" placeholder="请输入当前密码" required>
+                                <button type="button" class="password-toggle" onclick="togglePasswordVisibility('account-old-password', this)">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-group password-group">
+                            <label class="form-label">新密码</label>
+                            <div class="password-input-wrapper">
+                                <input type="password" class="form-input" name="newPassword" id="account-new-password" placeholder="请输入新密码" minlength="6">
+                                <button type="button" class="password-toggle" onclick="togglePasswordVisibility('account-new-password', this)">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                </button>
+                            </div>
+                            <small style="color: var(--text-sub); display: block; margin-top: 4px; font-size: 0.8rem;">新密码至少6个字符，留空则不修改密码</small>
+                        </div>
+                        <div class="form-group password-group">
+                            <label class="form-label">确认新密码</label>
+                            <div class="password-input-wrapper">
+                                <input type="password" class="form-input" name="confirmPassword" id="account-confirm-password" placeholder="请再次输入新密码" minlength="6">
+                                <button type="button" class="password-toggle" onclick="togglePasswordVisibility('account-confirm-password', this)">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                        <circle cx="12" cy="12" r="3"></circle>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div style="padding: 16px; background: #fffbeb; border-radius: var(--radius-sm); margin-bottom: 20px; border-left: 4px solid var(--warning);">
+                            <p style="color: #92400e; font-size: 0.9rem;">
+                                <strong>提示：</strong>如果修改了密码，保存后需要重新登录。
+                            </p>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            保存修改
+                        </button>
+                    </form>
                 </div>
             </section>
         </main>
@@ -1131,6 +1378,57 @@
                 <div class="modal-footer">
                     <button type="button" class="btn" onclick="closeEventModal()">取消</button>
                     <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 修改密码弹窗 -->
+    <div class="modal" id="password-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">修改密码</h3>
+            </div>
+            <form id="password-form">
+                <div class="form-group password-group">
+                    <label class="form-label">旧密码</label>
+                    <div class="password-input-wrapper">
+                        <input type="password" class="form-input" name="oldPassword" id="old-password" placeholder="请输入旧密码" required>
+                        <button type="button" class="password-toggle" onclick="togglePasswordVisibility('old-password', this)">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group password-group">
+                    <label class="form-label">新密码</label>
+                    <div class="password-input-wrapper">
+                        <input type="password" class="form-input" name="newPassword" id="new-password" placeholder="请输入新密码（至少6位）" required minlength="6">
+                        <button type="button" class="password-toggle" onclick="togglePasswordVisibility('new-password', this)">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group password-group">
+                    <label class="form-label">确认新密码</label>
+                    <div class="password-input-wrapper">
+                        <input type="password" class="form-input" name="confirmPassword" id="confirm-password" placeholder="请再次输入新密码" required minlength="6">
+                        <button type="button" class="password-toggle" onclick="togglePasswordVisibility('confirm-password', this)">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closePasswordModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">修改密码</button>
                 </div>
             </form>
         </div>

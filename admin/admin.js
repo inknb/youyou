@@ -4,12 +4,299 @@ const API_BASE = window.location.origin;
 // 全局配置数据
 let configData = null;
 
+// Token 管理
+const TOKEN_KEY = 'admin_token';
+
+function getToken() {
+    return localStorage.getItem(TOKEN_KEY);
+}
+
+function setToken(token) {
+    localStorage.setItem(TOKEN_KEY, token);
+}
+
+function clearToken() {
+    localStorage.removeItem(TOKEN_KEY);
+}
+
+// 带认证的 fetch 封装
+async function authFetch(url, options = {}) {
+    const token = getToken();
+    const headers = {
+        ...options.headers,
+        'Content-Type': 'application/json'
+    };
+
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const res = await fetch(url, {
+        ...options,
+        headers
+    });
+
+    const data = await res.json();
+
+    // 检查是否需要重新登录
+    if (data.needLogin || res.status === 401) {
+        clearToken();
+        showLoginPage();
+        showToast('登录已过期，请重新登录', 'error');
+        throw new Error('需要重新登录');
+    }
+
+    return { res, data };
+}
+
 // 初始化
 document.addEventListener('DOMContentLoaded', async () => {
-    await loadConfig();
-    initNavigation();
-    initForms();
+    // 初始化登录表单
+    initLoginForm();
+    initPasswordForm();
+    initAccountForm();
+
+    // 检查登录状态
+    const token = getToken();
+    if (token) {
+        try {
+            const { data } = await authFetch(`${API_BASE}/api/auth/verify`);
+            if (data.success) {
+                showAdminPage();
+                document.getElementById('display-username').textContent = data.data.username;
+                if (data.data.lastLogin) {
+                    document.getElementById('display-last-login').textContent = `上次登录: ${formatTime(data.data.lastLogin)}`;
+                }
+                await loadConfig();
+                initNavigation();
+                initForms();
+            }
+        } catch (err) {
+            showLoginPage();
+        }
+    } else {
+        showLoginPage();
+    }
 });
+
+// 显示登录页面
+function showLoginPage() {
+    document.getElementById('login-page').style.display = 'flex';
+    document.getElementById('admin-layout').classList.add('hidden');
+}
+
+// 显示管理页面
+function showAdminPage() {
+    document.getElementById('login-page').style.display = 'none';
+    document.getElementById('admin-layout').classList.remove('hidden');
+}
+
+// 格式化时间
+function formatTime(isoString) {
+    const date = new Date(isoString);
+    return date.toLocaleString('zh-CN', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+// 切换密码可见性
+function togglePasswordVisibility(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (input.type === 'password') {
+        input.type = 'text';
+        btn.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+        `;
+    } else {
+        input.type = 'password';
+        btn.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+        `;
+    }
+}
+
+// 初始化登录表单
+function initLoginForm() {
+    const form = document.getElementById('login-form');
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('login-btn');
+        const originalText = btn.textContent;
+        btn.textContent = '登录中...';
+        btn.disabled = true;
+
+        try {
+            const formData = new FormData(form);
+            const res = await fetch(`${API_BASE}/api/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: formData.get('username'),
+                    password: formData.get('password')
+                })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                setToken(data.data.token);
+                showToast('登录成功');
+                showAdminPage();
+                document.getElementById('display-username').textContent = data.data.username;
+                if (data.data.lastLogin) {
+                    document.getElementById('display-last-login').textContent = `上次登录: ${formatTime(data.data.lastLogin)}`;
+                }
+                await loadConfig();
+                initNavigation();
+                initForms();
+                form.reset();
+            } else {
+                showToast(data.message || '登录失败', 'error');
+            }
+        } catch (err) {
+            showToast('网络错误，请稍后重试', 'error');
+        } finally {
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+    });
+}
+
+// 初始化修改密码表单
+function initPasswordForm() {
+    const form = document.getElementById('password-form');
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(form);
+        const newPassword = formData.get('newPassword');
+        const confirmPassword = formData.get('confirmPassword');
+
+        if (newPassword !== confirmPassword) {
+            showToast('两次输入的密码不一致', 'error');
+            return;
+        }
+
+        try {
+            const { data } = await authFetch(`${API_BASE}/api/auth/change-password`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    oldPassword: formData.get('oldPassword'),
+                    newPassword: newPassword
+                })
+            });
+
+            if (data.success) {
+                showToast('密码已修改，请重新登录');
+                closePasswordModal();
+                logout();
+            } else {
+                showToast(data.message || '修改失败', 'error');
+            }
+        } catch (err) {
+            // 错误已在 authFetch 中处理
+        }
+    });
+}
+
+// 初始化账户设置表单
+let accountFormInitialized = false;
+function initAccountForm() {
+    const form = document.getElementById('account-form');
+    if (!form || accountFormInitialized) return;
+    accountFormInitialized = true;
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(form);
+        const username = formData.get('username').trim();
+        const oldPassword = formData.get('oldPassword');
+        const newPassword = formData.get('newPassword');
+        const confirmPassword = formData.get('confirmPassword');
+
+        // 验证
+        if (!oldPassword) {
+            showToast('请输入当前密码', 'error');
+            return;
+        }
+
+        if (newPassword && newPassword !== confirmPassword) {
+            showToast('两次输入的新密码不一致', 'error');
+            return;
+        }
+
+        if (!username && !newPassword) {
+            showToast('请输入要修改的用户名或新密码', 'error');
+            return;
+        }
+
+        const btn = form.querySelector('button[type="submit"]');
+        const originalText = btn.textContent;
+        btn.textContent = '保存中...';
+        btn.disabled = true;
+
+        try {
+            const { data } = await authFetch(`${API_BASE}/api/auth/update-account`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    username: username || undefined,
+                    oldPassword,
+                    newPassword: newPassword || undefined
+                })
+            });
+
+            if (data.success) {
+                showToast(data.message);
+                form.reset();
+                // 更新显示的用户名
+                if (data.data?.username) {
+                    document.getElementById('display-username').textContent = data.data.username;
+                }
+                // 如果需要重新登录（修改了密码）
+                if (data.needRelogin) {
+                    setTimeout(() => logout(), 1500);
+                }
+            } else {
+                showToast(data.message || '修改失败', 'error');
+            }
+        } catch (err) {
+            // 错误已在 authFetch 中处理
+        } finally {
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+    });
+}
+
+// 登出
+async function logout() {
+    try {
+        await authFetch(`${API_BASE}/api/auth/logout`, { method: 'POST' });
+    } catch (err) {
+        // 忽略错误
+    }
+    clearToken();
+    showLoginPage();
+    showToast('已退出登录');
+}
+
+// 打开修改密码弹窗
+function openPasswordModal() {
+    document.getElementById('password-modal').classList.add('show');
+    document.getElementById('password-form').reset();
+}
+
+// 关闭修改密码弹窗
+function closePasswordModal() {
+    document.getElementById('password-modal').classList.remove('show');
+}
 
 // 加载配置
 async function loadConfig() {
@@ -122,6 +409,9 @@ function renderSiteForm() {
 }
 
 function initForms() {
+    // 初始化账户设置表单
+    initAccountForm();
+    
     // 网站信息表单
     document.getElementById('site-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -129,12 +419,10 @@ function initForms() {
         const data = Object.fromEntries(formData);
 
         try {
-            const res = await fetch(`${API_BASE}/api/config/site`, {
+            const { data: result } = await authFetch(`${API_BASE}/api/config/site`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             });
-            const result = await res.json();
             if (result.success) {
                 showToast('保存成功！');
                 await loadConfig();
@@ -157,12 +445,10 @@ function initForms() {
         };
 
         try {
-            const res = await fetch(`${API_BASE}/api/config/apis`, {
+            const { data: result } = await authFetch(`${API_BASE}/api/config/apis`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ weather: weatherConfig })
             });
-            const result = await res.json();
             if (result.success) {
                 showToast('天气配置已保存');
                 await loadConfig();
@@ -203,23 +489,22 @@ function initForms() {
         if (!course.id) delete course.id;
 
         const id = document.getElementById('course-id').value;
-        
+
         try {
-            let res;
+            let result;
             if (id) {
-                res = await fetch(`${API_BASE}/api/schedule/courses/${id}`, {
+                const { data } = await authFetch(`${API_BASE}/api/schedule/courses/${id}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(course)
                 });
+                result = data;
             } else {
-                res = await fetch(`${API_BASE}/api/schedule/courses`, {
+                const { data } = await authFetch(`${API_BASE}/api/schedule/courses`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(course)
                 });
+                result = data;
             }
-            const result = await res.json();
             if (result.success) {
                 showToast(id ? '课程已更新' : '课程已添加');
                 closeCourseModal();
@@ -231,7 +516,7 @@ function initForms() {
             showToast('操作失败', 'error');
         }
     });
-    
+
     // 日程表单
     document.getElementById('event-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -244,23 +529,22 @@ function initForms() {
         if (!event.id) delete event.id;
 
         const id = document.getElementById('event-id').value;
-        
+
         try {
-            let res;
+            let result;
             if (id) {
-                res = await fetch(`${API_BASE}/api/schedule/events/${id}`, {
+                const { data } = await authFetch(`${API_BASE}/api/schedule/events/${id}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(event)
                 });
+                result = data;
             } else {
-                res = await fetch(`${API_BASE}/api/schedule/events`, {
+                const { data } = await authFetch(`${API_BASE}/api/schedule/events`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(event)
                 });
+                result = data;
             }
-            const result = await res.json();
             if (result.success) {
                 showToast(id ? '日程已更新' : '日程已添加');
                 closeEventModal();
@@ -283,23 +567,22 @@ function initForms() {
         if (!activity.id) delete activity.id;
 
         const id = document.getElementById('activity-id').value;
-        
+
         try {
-            let res;
+            let result;
             if (id) {
-                res = await fetch(`${API_BASE}/api/activities/${id}`, {
+                const { data } = await authFetch(`${API_BASE}/api/activities/${id}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(activity)
                 });
+                result = data;
             } else {
-                res = await fetch(`${API_BASE}/api/activities`, {
+                const { data } = await authFetch(`${API_BASE}/api/activities`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(activity)
                 });
+                result = data;
             }
-            const result = await res.json();
             if (result.success) {
                 showToast(id ? '动态已更新' : '动态已添加');
                 closeActivityModal();
@@ -369,14 +652,12 @@ function renderWeatherApi() {
 
 async function toggleApi(index) {
     configData.apis.anime[index].enabled = !configData.apis.anime[index].enabled;
-    
+
     try {
-        const res = await fetch(`${API_BASE}/api/config/apis`, {
+        const { data: result } = await authFetch(`${API_BASE}/api/config/apis`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ anime: configData.apis.anime })
         });
-        const result = await res.json();
         if (result.success) {
             showToast('API 状态已更新');
             await loadConfig();
@@ -405,16 +686,14 @@ document.getElementById('api-form').addEventListener('submit', async (e) => {
         priority: parseInt(formData.get('priority')),
         enabled: true
     };
-    
+
     configData.apis.anime.push(newApi);
-    
+
     try {
-        const res = await fetch(`${API_BASE}/api/config/apis`, {
+        const { data: result } = await authFetch(`${API_BASE}/api/config/apis`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ anime: configData.apis.anime })
         });
-        const result = await res.json();
         if (result.success) {
             showToast('API 已添加');
             closeApiModal();
@@ -427,16 +706,14 @@ document.getElementById('api-form').addEventListener('submit', async (e) => {
 
 async function deleteApi(index) {
     if (!confirm('确定删除这个 API？')) return;
-    
+
     configData.apis.anime.splice(index, 1);
-    
+
     try {
-        const res = await fetch(`${API_BASE}/api/config/apis`, {
+        const { data: result } = await authFetch(`${API_BASE}/api/config/apis`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ anime: configData.apis.anime })
         });
-        const result = await res.json();
         if (result.success) {
             showToast('API 已删除');
             await loadConfig();
@@ -492,19 +769,17 @@ if (document.getElementById('hitokoto-api-form')) {
             priority: parseInt(formData.get('priority')),
             enabled: true
         };
-        
+
         if (!configData.apis.hitokoto) {
             configData.apis.hitokoto = [];
         }
         configData.apis.hitokoto.push(newApi);
-        
+
         try {
-            const res = await fetch(`${API_BASE}/api/config/apis`, {
+            const { data: result } = await authFetch(`${API_BASE}/api/config/apis`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ hitokoto: configData.apis.hitokoto })
             });
-            const result = await res.json();
             if (result.success) {
                 showToast('API 已添加');
                 closeHitokotoApiModal();
@@ -518,14 +793,12 @@ if (document.getElementById('hitokoto-api-form')) {
 
 async function toggleHitokotoApi(index) {
     configData.apis.hitokoto[index].enabled = !configData.apis.hitokoto[index].enabled;
-    
+
     try {
-        const res = await fetch(`${API_BASE}/api/config/apis`, {
+        const { data: result } = await authFetch(`${API_BASE}/api/config/apis`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ hitokoto: configData.apis.hitokoto })
         });
-        const result = await res.json();
         if (result.success) {
             showToast('API 状态已更新');
             await loadConfig();
@@ -537,16 +810,14 @@ async function toggleHitokotoApi(index) {
 
 async function deleteHitokotoApi(index) {
     if (!confirm('确定删除这个 API？')) return;
-    
+
     configData.apis.hitokoto.splice(index, 1);
-    
+
     try {
-        const res = await fetch(`${API_BASE}/api/config/apis`, {
+        const { data: result } = await authFetch(`${API_BASE}/api/config/apis`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ hitokoto: configData.apis.hitokoto })
         });
-        const result = await res.json();
         if (result.success) {
             showToast('API 已删除');
             await loadConfig();
@@ -559,7 +830,7 @@ async function deleteHitokotoApi(index) {
 // ========== 标签管理 ==========
 function renderTags() {
     if (!configData) return;
-    
+
     const list = document.getElementById('tag-list');
     list.innerHTML = configData.tags.map((tag, index) => `
         <div class="tag-item">
@@ -573,21 +844,19 @@ function renderTags() {
 async function addTag() {
     const icon = document.getElementById('tag-icon').value.trim();
     const name = document.getElementById('tag-name').value.trim();
-    
+
     if (!icon || !name) {
         showToast('请填写完整信息', 'error');
         return;
     }
-    
+
     configData.tags.push({ icon, name });
-    
+
     try {
-        const res = await fetch(`${API_BASE}/api/config/tags`, {
+        const { data: result } = await authFetch(`${API_BASE}/api/config/tags`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tags: configData.tags })
         });
-        const result = await res.json();
         if (result.success) {
             showToast('标签已添加');
             document.getElementById('tag-icon').value = '';
@@ -601,16 +870,14 @@ async function addTag() {
 
 async function removeTag(index) {
     if (!confirm('确定删除这个标签？')) return;
-    
+
     configData.tags.splice(index, 1);
-    
+
     try {
-        const res = await fetch(`${API_BASE}/api/config/tags`, {
+        const { data: result } = await authFetch(`${API_BASE}/api/config/tags`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tags: configData.tags })
         });
-        const result = await res.json();
         if (result.success) {
             showToast('标签已删除');
             await loadConfig();
@@ -675,12 +942,10 @@ async function deleteLink(index) {
 
 async function saveLinks() {
     try {
-        const res = await fetch(`${API_BASE}/api/config/links`, {
+        const { data: result } = await authFetch(`${API_BASE}/api/config/links`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ links: configData.links })
         });
-        const result = await res.json();
         if (result.success) {
             showToast('链接已保存');
             await loadConfig();
@@ -767,12 +1032,11 @@ async function deleteCourse(id) {
     console.log('正在删除课程，ID:', id);
 
     try {
-        const res = await fetch(`${API_BASE}/api/schedule/courses/${id}`, {
+        const { data: result } = await authFetch(`${API_BASE}/api/schedule/courses/${id}`, {
             method: 'DELETE'
         });
-        const result = await res.json();
         console.log('删除课程响应:', result);
-        
+
         if (result.success) {
             showToast('课程已删除');
             // 立即从本地数据中移除
@@ -828,12 +1092,11 @@ async function deleteEvent(id) {
     console.log('正在删除日程，ID:', id);
 
     try {
-        const res = await fetch(`${API_BASE}/api/schedule/events/${id}`, {
+        const { data: result } = await authFetch(`${API_BASE}/api/schedule/events/${id}`, {
             method: 'DELETE'
         });
-        const result = await res.json();
         console.log('删除日程响应:', result);
-        
+
         if (result.success) {
             showToast('日程已删除');
             // 立即从本地数据中移除
@@ -911,12 +1174,11 @@ async function deleteActivity(id) {
     console.log('正在删除动态，ID:', id);
 
     try {
-        const res = await fetch(`${API_BASE}/api/activities/${id}`, {
+        const { data: result } = await authFetch(`${API_BASE}/api/activities/${id}`, {
             method: 'DELETE'
         });
-        const result = await res.json();
         console.log('删除动态响应:', result);
-        
+
         if (result.success) {
             showToast('动态已删除');
             // 立即从本地数据中移除

@@ -8,6 +8,13 @@
     "signature": "小小世界 开心至上",
     "startDate": "2026-03-14"
   },
+  "admin": {
+    "username": "3199169587",
+    "password": "564215c82a366392285b56042c31ace8",
+    "token": "693e6495a8729378b606d3a033e0ba025ad5da7425352764dabece57fa4c79b1",
+    "lastLogin": "2026-03-15T08:36:26.113Z",
+    "tokenExpiry": 1773650186113
+  },
   "apis": {
     "anime": [
       {
@@ -67,6 +74,13 @@
       "url": "https://github.com",
       "icon": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg",
       "color": "#24292f"
+    },
+    {
+      "index": "",
+      "name": "Twitter",
+      "url": "https://twitter.com",
+      "icon": "https://abs.twimg.com/favicons/twitter.2.ico",
+      "color": "#3b82f6"
     }
   ],
   "schedule": {

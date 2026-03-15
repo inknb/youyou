@@ -3,9 +3,13 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = 3000;
+
+// Token 有效期（24小时）
+const TOKEN_EXPIRY = 24 * 60 * 60 * 1000;
 
 // 中间件
 app.use(cors());
@@ -42,20 +46,237 @@ function writeConfig(config) {
   }
 }
 
+// MD5 加密
+function md5(str) {
+  return crypto.createHash('md5').update(str).digest('hex');
+}
+
+// 生成随机 Token
+function generateToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+// 认证中间件
+function authMiddleware(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+
+  if (!token) {
+    return res.status(401).json({ success: false, message: '未登录', needLogin: true });
+  }
+
+  const config = readConfig();
+  if (!config || !config.admin) {
+    return res.status(500).json({ success: false, message: '配置错误' });
+  }
+
+  // 验证 Token
+  if (config.admin.token !== token) {
+    return res.status(401).json({ success: false, message: 'Token 无效', needLogin: true });
+  }
+
+  // 检查 Token 是否过期
+  if (config.admin.tokenExpiry && Date.now() > config.admin.tokenExpiry) {
+    return res.status(401).json({ success: false, message: '登录已过期', needLogin: true });
+  }
+
+  next();
+}
+
 // ========== API 路由 ==========
 
-// 获取所有配置
+// ========== 认证 API ==========
+
+// 登录
+app.post('/api/auth/login', (req, res) => {
+  const { username, password } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({ success: false, message: '请输入用户名和密码' });
+  }
+
+  const config = readConfig();
+  if (!config || !config.admin) {
+    return res.status(500).json({ success: false, message: '配置错误' });
+  }
+
+  // 验证用户名和密码
+  const passwordHash = md5(password);
+  if (username !== config.admin.username || passwordHash !== config.admin.password) {
+    return res.status(401).json({ success: false, message: '用户名或密码错误' });
+  }
+
+  // 生成新 Token
+  const token = generateToken();
+  config.admin.token = token;
+  config.admin.tokenExpiry = Date.now() + TOKEN_EXPIRY;
+  config.admin.lastLogin = new Date().toISOString();
+
+  if (writeConfig(config)) {
+    console.log(`[登录] 用户 ${username} 登录成功`);
+    res.json({
+      success: true,
+      message: '登录成功',
+      data: {
+        token,
+        username: config.admin.username,
+        lastLogin: config.admin.lastLogin
+      }
+    });
+  } else {
+    res.status(500).json({ success: false, message: '保存登录状态失败' });
+  }
+});
+
+// 验证 Token
+app.get('/api/auth/verify', authMiddleware, (req, res) => {
+  const config = readConfig();
+  res.json({
+    success: true,
+    data: {
+      username: config.admin.username,
+      lastLogin: config.admin.lastLogin
+    }
+  });
+});
+
+// 登出
+app.post('/api/auth/logout', authMiddleware, (req, res) => {
+  const config = readConfig();
+  if (config && config.admin) {
+    config.admin.token = '';
+    config.admin.tokenExpiry = null;
+    writeConfig(config);
+    console.log('[登出] 用户已登出');
+  }
+  res.json({ success: true, message: '已登出' });
+});
+
+// 修改密码
+app.post('/api/auth/change-password', authMiddleware, (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+
+  if (!oldPassword || !newPassword) {
+    return res.status(400).json({ success: false, message: '请输入旧密码和新密码' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ success: false, message: '新密码至少需要6个字符' });
+  }
+
+  const config = readConfig();
+  if (!config || !config.admin) {
+    return res.status(500).json({ success: false, message: '配置错误' });
+  }
+
+  // 验证旧密码
+  const oldPasswordHash = md5(oldPassword);
+  if (oldPasswordHash !== config.admin.password) {
+    return res.status(401).json({ success: false, message: '旧密码错误' });
+  }
+
+  // 更新密码
+  config.admin.password = md5(newPassword);
+  // 清除 Token，强制重新登录
+  config.admin.token = '';
+  config.admin.tokenExpiry = null;
+
+  if (writeConfig(config)) {
+    console.log('[密码] 密码已修改');
+    res.json({ success: true, message: '密码已修改，请重新登录', needRelogin: true });
+  } else {
+    res.status(500).json({ success: false, message: '保存失败' });
+  }
+});
+
+// 修改账户信息（用户名和密码）
+app.post('/api/auth/update-account', authMiddleware, (req, res) => {
+  const { username, oldPassword, newPassword } = req.body;
+
+  if (!oldPassword) {
+    return res.status(400).json({ success: false, message: '请输入当前密码' });
+  }
+
+  if (username && username.length < 3) {
+    return res.status(400).json({ success: false, message: '用户名至少需要3个字符' });
+  }
+
+  if (newPassword && newPassword.length < 6) {
+    return res.status(400).json({ success: false, message: '新密码至少需要6个字符' });
+  }
+
+  const config = readConfig();
+  if (!config || !config.admin) {
+    return res.status(500).json({ success: false, message: '配置错误' });
+  }
+
+  // 验证当前密码
+  const oldPasswordHash = md5(oldPassword);
+  if (oldPasswordHash !== config.admin.password) {
+    return res.status(401).json({ success: false, message: '当前密码错误' });
+  }
+
+  // 更新用户名
+  if (username && username !== config.admin.username) {
+    config.admin.username = username;
+    console.log(`[账户] 用户名已修改为: ${username}`);
+  }
+
+  // 更新密码（如果提供了新密码）
+  let needRelogin = false;
+  if (newPassword) {
+    config.admin.password = md5(newPassword);
+    // 清除 Token，强制重新登录
+    config.admin.token = '';
+    config.admin.tokenExpiry = null;
+    needRelogin = true;
+    console.log('[账户] 密码已修改');
+  }
+
+  if (writeConfig(config)) {
+    res.json({
+      success: true,
+      message: needRelogin ? '账户信息已更新，请重新登录' : '账户信息已更新',
+      needRelogin,
+      data: {
+        username: config.admin.username
+      }
+    });
+  } else {
+    res.status(500).json({ success: false, message: '保存失败' });
+  }
+});
+
+// ========== 公开 API（无需认证）==========
+
+// 获取前台配置（不包含敏感信息）
 app.get('/api/config', (req, res) => {
   const config = readConfig();
   if (config) {
-    res.json({ success: true, data: config });
+    // 过滤敏感信息
+    const publicConfig = {
+      site: config.site,
+      apis: {
+        anime: config.apis?.anime || [],
+        hitokoto: config.apis?.hitokoto || [],
+        qqInfo: config.apis?.qqInfo,
+        weather: config.apis?.weather
+      },
+      tags: config.tags,
+      links: config.links,
+      schedule: config.schedule,
+      widgets: config.widgets,
+      activities: config.activities
+    };
+    res.json({ success: true, data: publicConfig });
   } else {
     res.status(500).json({ success: false, message: '读取配置失败' });
   }
 });
 
+// ========== 后台管理 API（需要认证）==========
+
 // 更新网站基本信息
-app.post('/api/config/site', (req, res) => {
+app.post('/api/config/site', authMiddleware, (req, res) => {
   const config = readConfig();
   if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
   
@@ -68,7 +289,7 @@ app.post('/api/config/site', (req, res) => {
 });
 
 // 更新 API 配置
-app.post('/api/config/apis', (req, res) => {
+app.post('/api/config/apis', authMiddleware, (req, res) => {
   const config = readConfig();
   if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
   
@@ -81,7 +302,7 @@ app.post('/api/config/apis', (req, res) => {
 });
 
 // 更新标签
-app.post('/api/config/tags', (req, res) => {
+app.post('/api/config/tags', authMiddleware, (req, res) => {
   const config = readConfig();
   if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
   
@@ -94,7 +315,7 @@ app.post('/api/config/tags', (req, res) => {
 });
 
 // 更新外链
-app.post('/api/config/links', (req, res) => {
+app.post('/api/config/links', authMiddleware, (req, res) => {
   const config = readConfig();
   if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
   
@@ -125,7 +346,7 @@ app.get('/api/schedule', (req, res) => {
 });
 
 // 添加课程
-app.post('/api/schedule/courses', (req, res) => {
+app.post('/api/schedule/courses', authMiddleware, (req, res) => {
   const config = readConfig();
   if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
 
@@ -145,7 +366,7 @@ app.post('/api/schedule/courses', (req, res) => {
 });
 
 // 更新课程
-app.put('/api/schedule/courses/:id', (req, res) => {
+app.put('/api/schedule/courses/:id', authMiddleware, (req, res) => {
   const config = readConfig();
   if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
 
@@ -166,7 +387,7 @@ app.put('/api/schedule/courses/:id', (req, res) => {
 });
 
 // 删除课程
-app.delete('/api/schedule/courses/:id', (req, res) => {
+app.delete('/api/schedule/courses/:id', authMiddleware, (req, res) => {
   const config = readConfig();
   if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
 
@@ -181,7 +402,7 @@ app.delete('/api/schedule/courses/:id', (req, res) => {
 });
 
 // 添加日程安排
-app.post('/api/schedule/events', (req, res) => {
+app.post('/api/schedule/events', authMiddleware, (req, res) => {
   const config = readConfig();
   if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
 
@@ -201,7 +422,7 @@ app.post('/api/schedule/events', (req, res) => {
 });
 
 // 更新日程
-app.put('/api/schedule/events/:id', (req, res) => {
+app.put('/api/schedule/events/:id', authMiddleware, (req, res) => {
   const config = readConfig();
   if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
 
@@ -222,7 +443,7 @@ app.put('/api/schedule/events/:id', (req, res) => {
 });
 
 // 删除日程
-app.delete('/api/schedule/events/:id', (req, res) => {
+app.delete('/api/schedule/events/:id', authMiddleware, (req, res) => {
   const config = readConfig();
   if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
 
@@ -249,7 +470,7 @@ app.get('/api/activities', (req, res) => {
 });
 
 // 添加动态
-app.post('/api/activities', (req, res) => {
+app.post('/api/activities', authMiddleware, (req, res) => {
   const config = readConfig();
   if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
 
@@ -273,7 +494,7 @@ app.post('/api/activities', (req, res) => {
 });
 
 // 更新动态
-app.put('/api/activities/:id', (req, res) => {
+app.put('/api/activities/:id', authMiddleware, (req, res) => {
   const config = readConfig();
   if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
 
@@ -298,7 +519,7 @@ app.put('/api/activities/:id', (req, res) => {
 });
 
 // 删除动态
-app.delete('/api/activities/:id', (req, res) => {
+app.delete('/api/activities/:id', authMiddleware, (req, res) => {
   const config = readConfig();
   if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
 
