@@ -1,0 +1,115 @@
+{
+  "site": {
+    "title": "悠悠の小站",
+    "subtitle": "探索简洁、逻辑与二次元的平衡点",
+    "nickname": "悠悠",
+    "qq": "3199169587",
+    "bio": "热爱二次元的平凡学生",
+    "signature": "小小世界 开心至上",
+    "startDate": "2026-03-14"
+  },
+  "apis": {
+    "anime": [
+      {
+        "name": "yppp",
+        "url": "https://api.yppp.net/api.php",
+        "enabled": true,
+        "priority": 1
+      },
+      {
+        "name": "loliapi",
+        "url": "https://www.loliapi.com/acg/",
+        "enabled": true,
+        "priority": 2
+      }
+    ],
+    "hitokoto": [
+      {
+        "name": "hitokoto",
+        "url": "https://v1.hitokoto.cn/?encode=text",
+        "enabled": true,
+        "priority": 1
+      }
+    ],
+    "qqInfo": {
+      "url": "https://uapis.cn/api/v1/social/qq/userinfo",
+      "enabled": true
+    },
+    "weather": {
+      "url": "https://wttr.in",
+      "city": "佛山",
+      "enabled": true
+    }
+  },
+  "tags": [
+    {
+      "icon": "gamepad",
+      "name": "ACG"
+    },
+    {
+      "icon": "code",
+      "name": "Code"
+    },
+    {
+      "icon": "sparkles",
+      "name": "二次元"
+    }
+  ],
+  "links": [
+    {
+      "name": "Bilibili",
+      "url": "https://space.bilibili.com",
+      "icon": "https://www.bilibili.com/favicon.ico",
+      "color": "#00a1d6"
+    },
+    {
+      "name": "GitHub",
+      "url": "https://github.com",
+      "icon": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg",
+      "color": "#24292f"
+    }
+  ],
+  "schedule": {
+    "courses": [],
+    "events": [
+      {
+        "id": 1773500355709,
+        "name": "看番",
+        "day": 6,
+        "type": "hobby",
+        "startTime": "12:00",
+        "endTime": "03:00",
+        "color": "#2168c4"
+      }
+    ]
+  },
+  "widgets": {
+    "sakana": {
+      "enabled": true,
+      "characters": [
+        {
+          "name": "chisato",
+          "position": "right",
+          "size": 200
+        },
+        {
+          "name": "takina",
+          "position": "left",
+          "size": 200
+        }
+      ]
+    }
+  },
+  "activities": [
+    {
+      "id": 2,
+      "text": "添加了新的日程管理功能",
+      "time": "今天"
+    },
+    {
+      "id": 3,
+      "text": "学习了新的前端技术",
+      "time": "昨天"
+    }
+  ]
+}

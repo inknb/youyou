@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>后台管理 | 悠悠の主页</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Noto+Sans+SC:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #fcfdfe;
+            --primary-blue: #02539a;
+            --text-main: #1e293b;
+            --text-sub: #64748b;
+            --card-bg: rgba(255, 255, 255, 0.9);
+            --radius-lg: 20px;
+            --radius-sm: 12px;
+            --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.06);
+            --danger: #ef4444;
+            --success: #22c55e;
+            --warning: #f59e0b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f0f4f8 0%, #e8eef5 100%);
+            color: var(--text-main);
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* 侧边栏 */
+        .admin-layout {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 260px;
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(0,0,0,0.05);
+            padding: 30px 20px;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(0,0,0,0.06);
+        }
+
+        .sidebar-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--primary-blue);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-sub);
+            margin-top: 5px;
+        }
+
+        .nav-menu {
+            list-style: none;
+        }
+
+        .nav-item {
+            margin-bottom: 8px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            border-radius: var(--radius-sm);
+            color: var(--text-sub);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            background: var(--primary-blue);
+            color: white;
+            box-shadow: 0 4px 15px rgba(2, 83, 154, 0.3);
+        }
+
+        .nav-icon {
+            font-size: 1.2rem;
+        }
+
+        /* 主内容区 */
+        .main-content {
+            flex: 1;
+            margin-left: 260px;
+            padding: 40px;
+            max-width: calc(100% - 260px);
+        }
+
+        .page-header {
+            margin-bottom: 30px;
+        }
+
+        .page-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 8px;
+        }
+
+        .page-desc {
+            color: var(--text-sub);
+        }
+
+        /* 卡片 */
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-soft);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.5);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(0,0,0,0.06);
+        }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 表单 */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .form-input,
+        .form-textarea,
+        .form-select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: var(--radius-sm);
+            font-size: 0.95rem;
+            font-family: inherit;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .form-input:focus,
+        .form-textarea:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(2, 83, 154, 0.1);
+        }
+
+        .form-textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        /* 按钮 */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: var(--primary-blue);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #014a8a;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(2, 83, 154, 0.3);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #16a34a;
+        }
+
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+        }
+
+        /* 表格 */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .data-table th {
+            font-weight: 600;
+            color: var(--text-sub);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .data-table tr:hover td {
+            background: #f8fafc;
+        }
+
+        /* 标签列表 */
+        .tag-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .tag-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #eff6ff;
+            color: var(--primary-blue);
+            padding: 8px 14px;
+            border-radius: 100px;
+            font-size: 0.9rem;
+        }
+
+        .tag-item .remove {
+            cursor: pointer;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+
+        .tag-item .remove:hover {
+            opacity: 1;
+        }
+
+        .tag-input-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .tag-input-group .form-input {
+            flex: 1;
+        }
+
+        /* 外链卡片 - 精美拟态风格 */
+        .link-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 24px;
+            padding: 8px;
+        }
+
+        .link-card {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            padding: 24px 16px;
+            background: linear-gradient(145deg, #f5f7fa, #e8ecf1);
+            border-radius: 24px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 
+                6px 6px 12px rgba(163, 177, 198, 0.4),
+                -6px -6px 12px rgba(255, 255, 255, 0.8),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+            border: none;
+            overflow: hidden;
+        }
+
+        .link-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 50%;
+            background: linear-gradient(180deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 100%);
+            border-radius: 24px 24px 0 0;
+            pointer-events: none;
+        }
+
+        .link-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 
+                10px 10px 20px rgba(163, 177, 198, 0.5),
+                -10px -10px 20px rgba(255, 255, 255, 0.9),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+        }
+
+        .link-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+            z-index: 1;
+        }
+
+        .link-icon img {
+            width: 32px;
+            height: 32px;
+            object-fit: contain;
+            filter: grayscale(40%) opacity(0.8);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .link-card:hover .link-icon img {
+            filter: grayscale(0%) opacity(1);
+            transform: scale(1.1);
+        }
+
+        .link-info {
+            flex: 1;
+        }
+
+        .link-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .link-url {
+            font-size: 0.85rem;
+            color: var(--text-sub);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 180px;
+        }
+
+        .link-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .link-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .link-btn.edit {
+            background: #e0e7ff;
+            color: var(--primary-blue);
+        }
+
+        .link-btn.delete {
+            background: #fee2e2;
+            color: var(--danger);
+        }
+
+        .link-btn:hover {
+            transform: scale(1.1);
+        }
+
+        /* 课程表 */
+        .schedule-grid {
+            display: grid;
+            grid-template-columns: 80px repeat(7, 1fr);
+            gap: 8px;
+            margin-top: 20px;
+        }
+
+        .schedule-header {
+            font-weight: 600;
+            color: var(--text-sub);
+            font-size: 0.85rem;
+            text-align: center;
+            padding: 12px 4px;
+        }
+
+        .schedule-time {
+            font-size: 0.8rem;
+            color: var(--text-sub);
+            text-align: right;
+            padding-right: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .schedule-cell {
+            min-height: 60px;
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 8px;
+            font-size: 0.8rem;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .schedule-cell:hover {
+            background: #e2e8f0;
+        }
+
+        .schedule-item {
+            background: var(--primary-blue);
+            color: white;
+            border-radius: 6px;
+            padding: 6px;
+            font-size: 0.75rem;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .schedule-item .name {
+            font-weight: 600;
+        }
+
+        .schedule-item .location {
+            opacity: 0.8;
+        }
+
+        /* 响应式 */
+        @media (max-width: 1024px) {
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+            }
+            .main-content {
+                margin-left: 0;
+                max-width: 100%;
+            }
+            .admin-layout {
+                flex-direction: column;
+            }
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Toast 提示 */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 16px 24px;
+            border-radius: var(--radius-sm);
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            transform: translateX(150%);
+            transition: transform 0.3s ease;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.success {
+            background: var(--success);
+        }
+
+        .toast.error {
+            background: var(--danger);
+        }
+
+        /* 隐藏/显示 */
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+        }
+
+        /* 弹窗 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 30px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-layout">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">管理中心</div>
+                <div class="sidebar-subtitle">悠悠の主页后台</div>
+            </div>
+            <nav>
+                <ul class="nav-menu">
+                    <li class="nav-item">
+                        <a class="nav-link active" data-section="dashboard">
+                            
+                            <span>概览</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-section="site">
+                            
+                            <span>网站信息</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-section="apis">
+                            
+                            <span>API 管理</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-section="tags">
+                            
+                            <span>标签管理</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-section="links">
+                            
+                            <span>外链管理</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-section="schedule">
+                            
+                            <span>日程管理</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-section="activities">
+                            
+                            <span>动态管理</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- 主内容 -->
+        <main class="main-content">
+            <!-- 概览 -->
+            <section id="dashboard" class="section active">
+                <div class="page-header">
+                    <h1 class="page-title">数据概览</h1>
+                    <p class="page-desc">查看网站各项数据统计</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">实时状态</h3>
+                    </div>
+                    <div id="dashboard-stats">
+                        <!-- 动态加载 -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- 网站信息 -->
+            <section id="site" class="section">
+                <div class="page-header">
+                    <h1 class="page-title">网站信息</h1>
+                    <p class="page-desc">修改个人基本信息</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">基本信息</h3>
+                    </div>
+                    <form id="site-form">
+                        <div class="form-group">
+                            <label class="form-label">网站标题</label>
+                            <input type="text" class="form-input" name="title" placeholder="悠悠の小站">
+                            <small style="color: var(--text-sub); display: block; margin-top: 4px; font-size: 0.8rem;">显示在页面顶部中央</small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">昵称</label>
+                            <input type="text" class="form-input" name="nickname" placeholder="悠悠">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">QQ 号码</label>
+                            <input type="text" class="form-input" name="qq" placeholder="3199169587">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">个性签名</label>
+                            <input type="text" class="form-input" name="signature" placeholder="小小世界 开心至上">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">个人简介</label>
+                            <textarea class="form-textarea" name="bio" placeholder="介绍一下自己..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                           保存修改
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- API 管理 -->
+            <section id="apis" class="section">
+                <div class="page-header">
+                    <h1 class="page-title">API 管理</h1>
+                    <p class="page-desc">配置各种 API 接口</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">二次元图片 API</h3>
+                        <button class="btn btn-success btn-sm" onclick="openApiModal()">+ 添加 API</button>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>名称</th>
+                                <th>地址</th>
+                                <th>优先级</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="api-table-body">
+                            <!-- 动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">每日一言 API</h3>
+                        <button class="btn btn-success btn-sm" onclick="openHitokotoApiModal()">+ 添加 API</button>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>名称</th>
+                                <th>地址</th>
+                                <th>优先级</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hitokoto-api-table-body">
+                            <!-- 动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">QQ 信息 API</h3>
+                    </div>
+                    <div id="qq-api-config">
+                        <!-- 动态加载 -->
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">天气 API</h3>
+                    </div>
+                    <form id="weather-form" style="padding: 0;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">API 地址</label>
+                                <input type="text" class="form-input" name="url" id="weather-url" placeholder="https://wttr.in">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">城市（可选）</label>
+                                <input type="text" class="form-input" name="city" id="weather-city" placeholder="留空自动定位，如：北京">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">状态</label>
+                            <div style="display: flex; align-items: center; gap: 16px;">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" name="enabled" id="weather-enabled" checked>
+                                    <span>启用天气显示</span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <small style="color: var(--text-sub);">
+                                默认使用 wttr.in（无需 API key），支持中文城市名。如需其他 API，请填写相应地址。
+                            </small>
+                        </div>
+                        <button type="submit" class="btn btn-primary">保存配置</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- 标签管理 -->
+            <section id="tags" class="section">
+                <div class="page-header">
+                    <h1 class="page-title">标签管理</h1>
+                    <p class="page-desc">管理个人标签</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">现有标签</h3>
+                    </div>
+                    <div class="tag-list" id="tag-list">
+                        <!-- 动态加载 -->
+                    </div>
+                    <div class="tag-input-group">
+                        <input type="text" class="form-input" id="tag-icon" placeholder="图标名称，如 star/book/code">
+                        <input type="text" class="form-input" id="tag-name" placeholder="标签名称">
+                        <button class="btn btn-primary" onclick="addTag()">[+] 添加</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 外链管理 -->
+            <section id="links" class="section">
+                <div class="page-header">
+                    <h1 class="page-title">外链管理</h1>
+                    <p class="page-desc">管理社交媒体和项目链接</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">我的链接</h3>
+                        <button class="btn btn-success btn-sm" onclick="openLinkModal()">[+] 添加链接</button>
+                    </div>
+                    <div class="link-grid" id="link-grid">
+                        <!-- 动态加载 -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- 日程管理 -->
+            <section id="schedule" class="section">
+                <div class="page-header">
+                    <h1 class="page-title">日程管理</h1>
+                    <p class="page-desc">管理课程表和个人日程</p>
+                </div>
+                
+                <!-- 课程列表 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">课程表</h3>
+                        <button class="btn btn-success btn-sm" onclick="openCourseModal()">[+] 添加课程</button>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>课程名</th>
+                                <th>星期</th>
+                                <th>时间</th>
+                                <th>地点</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="course-table-body">
+                            <!-- 动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 日程安排 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">个人日程</h3>
+                        <button class="btn btn-success btn-sm" onclick="openEventModal()">[+] 添加日程</button>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>名称</th>
+                                <th>星期</th>
+                                <th>时间</th>
+                                <th>类型</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="event-table-body">
+                            <!-- 动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 动态管理 -->
+            <section id="activities" class="section">
+                <div class="page-header">
+                    <h1 class="page-title">动态管理</h1>
+                    <p class="page-desc">管理首页的“最近动态”</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">动态列表</h3>
+                        <button class="btn btn-success btn-sm" onclick="openActivityModal()">[+] 添加动态</button>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>动态内容</th>
+                                <th>时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activity-table-body">
+                            <!-- 动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- 动态弹窗 -->
+    <div class="modal" id="activity-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">添加/编辑动态</h3>
+            </div>
+            <form id="activity-form">
+                <input type="hidden" name="id" id="activity-id">
+                <div class="form-group">
+                    <label class="form-label">动态内容</label>
+                    <input type="text" class="form-input" name="text" placeholder="如：发布了一篇新文章">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">时间描述</label>
+                    <input type="text" class="form-input" name="time" placeholder="如：刚刚、1小时前、昨天">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeActivityModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 链接弹窗 -->
+    <div class="modal" id="link-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">添加/编辑链接</h3>
+            </div>
+            <form id="link-form">
+                <input type="hidden" name="index" id="link-index">
+                <div class="form-group">
+                    <label class="form-label">名称</label>
+                    <input type="text" class="form-input" name="name" placeholder="如：博客、GitHub">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">URL</label>
+                    <input type="url" class="form-input" name="url" placeholder="https://...">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">图标 URL</label>
+                    <input type="url" class="form-input" name="icon" placeholder="https://... 图标图片地址">
+                    <small style="color: var(--text-sub); display: block; margin-top: 4px; font-size: 0.8rem;">支持 .png .jpg .svg .ico 等格式，建议 64x64 像素</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">主题色</label>
+                    <input type="color" class="form-input" name="color" value="#3b82f6">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeLinkModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- API 弹窗 -->
+    <div class="modal" id="api-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">添加 API</h3>
+            </div>
+            <form id="api-form">
+                <div class="form-group">
+                    <label class="form-label">API 名称</label>
+                    <input type="text" class="form-input" name="name" placeholder="如：LoliAPI" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">API 地址</label>
+                    <input type="url" class="form-input" name="url" placeholder="https://..." required>
+                    <small style="color: var(--text-sub); display: block; margin-top: 4px; font-size: 0.8rem;">不需要加 ?t= 参数，系统会自动添加</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">优先级</label>
+                    <input type="number" class="form-input" name="priority" value="1" min="1" required>
+                    <small style="color: var(--text-sub); display: block; margin-top: 4px; font-size: 0.8rem;">数字越小优先级越高</small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeApiModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">添加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 每日一言 API 弹窗 -->
+    <div class="modal" id="hitokoto-api-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">添加每日一言 API</h3>
+            </div>
+            <form id="hitokoto-api-form">
+                <div class="form-group">
+                    <label class="form-label">API 名称</label>
+                    <input type="text" class="form-input" name="name" placeholder="如：Hitokoto" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">API 地址</label>
+                    <input type="url" class="form-input" name="url" placeholder="https://..." required>
+                    <small style="color: var(--text-sub); display: block; margin-top: 4px; font-size: 0.8rem;">返回纯文本格式的API地址</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">优先级</label>
+                    <input type="number" class="form-input" name="priority" value="1" min="1" required>
+                    <small style="color: var(--text-sub); display: block; margin-top: 4px; font-size: 0.8rem;">数字越小优先级越高</small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeHitokotoApiModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">添加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 课程弹窗 -->
+    <div class="modal" id="course-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">添加/编辑课程</h3>
+            </div>
+            <form id="course-form">
+                <input type="hidden" name="id" id="course-id">
+                <div class="form-group">
+                    <label class="form-label">课程名称</label>
+                    <input type="text" class="form-input" name="name" placeholder="如：高等数学">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">星期</label>
+                        <select class="form-select" name="day">
+                            <option value="1">周一</option>
+                            <option value="2">周二</option>
+                            <option value="3">周三</option>
+                            <option value="4">周四</option>
+                            <option value="5">周五</option>
+                            <option value="6">周六</option>
+                            <option value="7">周日</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">地点</label>
+                        <input type="text" class="form-input" name="location" placeholder="如：教学楼A-101">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">开始时间</label>
+                        <input type="time" class="form-input" name="startTime">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">结束时间</label>
+                        <input type="time" class="form-input" name="endTime">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">颜色标记</label>
+                    <input type="color" class="form-input" name="color" value="#3b82f6">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeCourseModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 日程弹窗 -->
+    <div class="modal" id="event-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">添加/编辑日程</h3>
+            </div>
+            <form id="event-form">
+                <input type="hidden" name="id" id="event-id">
+                <div class="form-group">
+                    <label class="form-label">日程名称</label>
+                    <input type="text" class="form-input" name="name" placeholder="如：看番时间">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">星期</label>
+                        <select class="form-select" name="day">
+                            <option value="1">周一</option>
+                            <option value="2">周二</option>
+                            <option value="3">周三</option>
+                            <option value="4">周四</option>
+                            <option value="5">周五</option>
+                            <option value="6">周六</option>
+                            <option value="7">周日</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">类型</label>
+                        <select class="form-select" name="type">
+                            <option value="hobby">兴趣爱好</option>
+                            <option value="project">项目开发</option>
+                            <option value="study">学习</option>
+                            <option value="other">其他</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">开始时间</label>
+                        <input type="time" class="form-input" name="startTime">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">结束时间</label>
+                        <input type="time" class="form-input" name="endTime">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">颜色标记</label>
+                    <input type="color" class="form-input" name="color" value="#22c55e">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn" onclick="closeEventModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script src="admin.js"></script>
+</body>
+</html>
