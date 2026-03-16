@@ -724,6 +724,168 @@
         .password-toggle:hover {
             color: var(--primary-blue);
         }
+
+        /* 隐藏浏览器自带的密码显示按钮 */
+        .form-input::-ms-reveal,
+        .form-input::-webkit-credentials-auto-fill-button {
+            display: none;
+        }
+
+input[type="password"]::-webkit-credentials-auto-fill-button {
+            visibility: hidden;
+            pointer-events: none;
+            position: absolute;
+            right: 0;
+        }
+
+        /* 统计卡片拟态风格 */
+        .stats-grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 24px;
+            padding: 8px;
+        }
+
+        .stat-card {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 28px 24px;
+            background: linear-gradient(145deg, #f5f7fa, #e8ecf1);
+            border-radius: 24px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow:
+                6px 6px 12px rgba(163, 177, 198, 0.4),
+                -6px -6px 12px rgba(255, 255, 255, 0.8),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 50%;
+            background: linear-gradient(180deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 100%);
+            border-radius: 24px 24px 0 0;
+            pointer-events: none;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow:
+                10px 10px 20px rgba(163, 177, 198, 0.5),
+                -10px -10px 20px rgba(255, 255, 255, 0.9),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+        }
+
+        .stat-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            z-index: 1;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .stat-card[data-color="#3b82f6"] .stat-icon {
+            background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+            color: #2563eb;
+        }
+
+        .stat-card[data-color="#22c55e"] .stat-icon {
+            background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+            color: #16a34a;
+        }
+
+        .stat-card[data-color="#f59e0b"] .stat-icon {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            color: #d97706;
+        }
+
+        .stat-card[data-color="#ec4899"] .stat-icon {
+            background: linear-gradient(135deg, #fce7f3, #fbcfe8);
+            color: #db2777;
+        }
+
+        .stat-card:hover .stat-icon {
+            transform: scale(1.1);
+        }
+
+        .stat-content {
+            flex: 1;
+            position: relative;
+            z-index: 1;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-main);
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--text-sub);
+            font-weight: 500;
+        }
+
+        /* 配置信息卡片 */
+        .config-info-card {
+            margin-top: 24px;
+            padding: 24px;
+            background: linear-gradient(145deg, #f5f7fa, #e8ecf1);
+            border-radius: 24px;
+            box-shadow:
+                6px 6px 12px rgba(163, 177, 198, 0.4),
+                -6px -6px 12px rgba(255, 255, 255, 0.8),
+                inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+        }
+
+        .config-info-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(0,0,0,0.06);
+            color: var(--primary-blue);
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .config-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+        }
+
+        .config-info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .config-info-label {
+            font-size: 0.8rem;
+            color: var(--text-sub);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .config-info-value {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
     </style>
 </head>
 <body>
@@ -874,6 +1036,11 @@
                             <input type="text" class="form-input" name="qq" placeholder="3199169587">
                         </div>
                         <div class="form-group">
+                            <label class="form-label">网站图标 (Favicon)</label>
+                            <input type="url" class="form-input" name="favicon" placeholder="https://example.com/favicon.ico">
+                            <small style="color: var(--text-sub); display: block; margin-top: 4px; font-size: 0.8rem;">支持 .ico .png .svg 格式，建议 32x32 或 64x64 像素</small>
+                        </div>
+                        <div class="form-group">
                             <label class="form-label">个性签名</label>
                             <input type="text" class="form-input" name="signature" placeholder="小小世界 开心至上">
                         </div>
@@ -968,7 +1135,7 @@
                         </div>
                         <div class="form-group">
                             <small style="color: var(--text-sub);">
-                                默认使用 wttr.in（无需 API key），支持中文城市名。如需其他 API，请填写相应地址。
+                                默认使用 wttr.in（无需 API key），支持中文城市名。城市留空时将根据访客IP自动定位显示当地天气。
                             </small>
                         </div>
                         <button type="submit" class="btn btn-primary">保存配置</button>

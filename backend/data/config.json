@@ -6,14 +6,15 @@
     "qq": "3199169587",
     "bio": "热爱二次元的平凡学生",
     "signature": "小小世界 开心至上",
-    "startDate": "2026-03-14"
+    "startDate": "2026-03-14",
+    "favicon": "https://blog.ovoc.top/usr/themes/PureSuck/logo.ico"
   },
   "admin": {
     "username": "3199169587",
     "password": "564215c82a366392285b56042c31ace8",
-    "token": "693e6495a8729378b606d3a033e0ba025ad5da7425352764dabece57fa4c79b1",
-    "lastLogin": "2026-03-15T08:36:26.113Z",
-    "tokenExpiry": 1773650186113
+    "token": "cb3ef51de2b3b7171bf116d135df8295fc6b6bee1f113c227556802d23553d5d",
+    "lastLogin": "2026-03-16T13:25:54.696Z",
+    "tokenExpiry": 1773753954696
   },
   "apis": {
     "anime": [
@@ -64,38 +65,37 @@
   ],
   "links": [
     {
+      "index": "0",
       "name": "Bilibili",
-      "url": "https://space.bilibili.com",
+      "url": "https://space.bilibili.com/3493124525525330?spm_id_from=333.1007.0.0",
       "icon": "https://www.bilibili.com/favicon.ico",
       "color": "#00a1d6"
     },
     {
+      "index": "1",
       "name": "GitHub",
-      "url": "https://github.com",
+      "url": "https://github.com/Luis-you",
       "icon": "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg",
       "color": "#24292f"
     },
     {
-      "index": "",
-      "name": "Twitter",
-      "url": "https://twitter.com",
-      "icon": "https://abs.twimg.com/favicons/twitter.2.ico",
+      "index": "2",
+      "name": "爱发电",
+      "url": "https://ifdian.net/a/inkwhite",
+      "icon": "https://static.afdiancdn.com/static/img/logo/logo.png",
+      "color": "#3b82f6"
+    },
+    {
+      "index": "3",
+      "name": "悠悠博客",
+      "url": "https://blog.ovoc.top/",
+      "icon": "https://blog.ovoc.top/usr/themes/PureSuck/logo.ico",
       "color": "#3b82f6"
     }
   ],
   "schedule": {
     "courses": [],
-    "events": [
-      {
-        "id": 1773500355709,
-        "name": "看番",
-        "day": 6,
-        "type": "hobby",
-        "startTime": "12:00",
-        "endTime": "03:00",
-        "color": "#2168c4"
-      }
-    ]
+    "events": []
   },
   "widgets": {
     "sakana": {
@@ -114,16 +114,5 @@
       ]
     }
   },
-  "activities": [
-    {
-      "id": 2,
-      "text": "添加了新的日程管理功能",
-      "time": "今天"
-    },
-    {
-      "id": 3,
-      "text": "学习了新的前端技术",
-      "time": "昨天"
-    }
-  ]
+  "activities": []
 }

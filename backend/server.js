@@ -605,6 +605,32 @@ function getWeatherDescByCode(code) {
   return weatherMap[codeNum] || null;
 }
 
+// 获取用户真实IP
+function getClientIP(req) {
+  let ip = req.headers['x-forwarded-for'] ||
+            req.headers['x-real-ip'] ||
+            req.connection?.remoteAddress ||
+            req.socket?.remoteAddress ||
+            req.ip || '';
+
+  // 处理多个IP的情况（取第一个）
+  if (ip.includes(',')) {
+    ip = ip.split(',')[0].trim();
+  }
+
+  // 处理IPv6映射的IPv4地址
+  if (ip.startsWith('::ffff:')) {
+    ip = ip.substring(7);
+  }
+
+  // 本地开发时返回空，让wttr.in自动检测
+  if (ip === '::1' || ip === '127.0.0.1' || ip === 'localhost') {
+    return '';
+  }
+
+  return ip;
+}
+
 // ========== 天气 API 代理 ==========
 app.get('/api/weather', async (req, res) => {
   const config = readConfig();
@@ -614,13 +640,24 @@ app.get('/api/weather', async (req, res) => {
 
   const weatherConfig = config.apis.weather;
   let weatherUrl = weatherConfig.url || 'https://wttr.in';
+  const clientIP = getClientIP(req);
 
   try {
     // 如果配置的是 wttr.in
     if (weatherUrl.includes('wttr.in')) {
-      const city = weatherConfig.city || 'Beijing';
-      const format = '?format=j1'; // 返回 JSON 格式
-      weatherUrl = `${weatherUrl}/${encodeURIComponent(city)}${format}`;
+      const format = '?format=j1&lang=zh'; // 返回 JSON 格式，中文
+
+      // 优先使用配置的城市，其次使用IP定位
+      if (weatherConfig.city) {
+        weatherUrl = `${weatherUrl}/${encodeURIComponent(weatherConfig.city)}${format}`;
+      } else if (clientIP) {
+        // 使用用户IP进行定位
+        weatherUrl = `${weatherUrl}/${encodeURIComponent(clientIP)}${format}`;
+        console.log(`[天气 API] 使用IP定位: ${clientIP}`);
+      } else {
+        // 本地开发，让wttr.in自动检测服务器位置
+        weatherUrl = `${weatherUrl}${format}`;
+      }
     } else if (weatherConfig.city && !weatherUrl.includes('?')) {
       // 其他 API，添加城市参数
       weatherUrl = `${weatherUrl}?city=${encodeURIComponent(weatherConfig.city)}`;
@@ -647,8 +684,16 @@ app.get('/api/weather', async (req, res) => {
     console.log(`[天气 API] 响应成功`);
 
     // 标准化数据格式
+    // 优先获取中文区域名，其次英文，再使用配置或默认值
+    const areaName = data.nearest_area?.[0];
+    const cityName = areaName?.areaName?.[0]?.value ||
+                     areaName?.region?.[0]?.value ||
+                     data.city ||
+                     weatherConfig.city ||
+                     '本地';
+
     const standardizedData = {
-      city: data.nearest_area?.[0]?.areaName?.[0]?.value || data.city || weatherConfig.city || '未知',
+      city: cityName,
       temp: data.current_condition?.[0]?.temp_C || data.temp || '0',
       weather: data.current_condition?.[0]?.lang_zh?.[0]?.value ||
                data.current_condition?.[0]?.weatherDesc?.[0]?.value ||

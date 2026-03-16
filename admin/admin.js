@@ -365,31 +365,84 @@ function initNavigation() {
 function renderDashboard() {
     const stats = document.getElementById('dashboard-stats');
     if (!configData) return;
-    
+
     stats.innerHTML = `
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
-            <div style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; padding: 24px; border-radius: 16px;">
-                <div style="font-size: 2rem; font-weight: 700;">${configData.apis.anime.length}</div>
-                <div style="opacity: 0.9;">图片 API 数量</div>
+        <div class="stats-grid-container">
+            <div class="stat-card" data-color="#3b82f6">
+                <div class="stat-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                        <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">${configData.apis.anime.length}</div>
+                    <div class="stat-label">图片 API</div>
+                </div>
             </div>
-            <div style="background: linear-gradient(135deg, #22c55e, #16a34a); color: white; padding: 24px; border-radius: 16px;">
-                <div style="font-size: 2rem; font-weight: 700;">${configData.tags.length}</div>
-                <div style="opacity: 0.9;">个人标签</div>
+            <div class="stat-card" data-color="#22c55e">
+                <div class="stat-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+                        <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">${configData.tags.length}</div>
+                    <div class="stat-label">个人标签</div>
+                </div>
             </div>
-            <div style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 24px; border-radius: 16px;">
-                <div style="font-size: 2rem; font-weight: 700;">${configData.links.length}</div>
-                <div style="opacity: 0.9;">外链数量</div>
+            <div class="stat-card" data-color="#f59e0b">
+                <div class="stat-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">${configData.links.length}</div>
+                    <div class="stat-label">外链数量</div>
+                </div>
             </div>
-            <div style="background: linear-gradient(135deg, #ec4899, #db2777); color: white; padding: 24px; border-radius: 16px;">
-                <div style="font-size: 2rem; font-weight: 700;">${(configData.activities || []).length}</div>
-                <div style="opacity: 0.9;">动态总数</div>
+            <div class="stat-card" data-color="#ec4899">
+                <div class="stat-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">${(configData.activities || []).length}</div>
+                    <div class="stat-label">动态总数</div>
+                </div>
             </div>
         </div>
-        <div style="margin-top: 24px; padding: 20px; background: #f8fafc; border-radius: 12px;">
-            <h4 style="margin-bottom: 12px;">当前配置</h4>
-            <p><strong>昵称：</strong>${configData.site.nickname}</p>
-            <p><strong>问候语：</strong>动态显示</p>
-            <p><strong>QQ：</strong>${configData.site.qq}</p>
+        <div class="config-info-card">
+            <div class="config-info-header">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+                <span>当前配置</span>
+            </div>
+            <div class="config-info-grid">
+                <div class="config-info-item">
+                    <span class="config-info-label">昵称</span>
+                    <span class="config-info-value">${configData.site.nickname}</span>
+                </div>
+                <div class="config-info-item">
+                    <span class="config-info-label">问候语</span>
+                    <span class="config-info-value">动态显示</span>
+                </div>
+                <div class="config-info-item">
+                    <span class="config-info-label">QQ</span>
+                    <span class="config-info-value">${configData.site.qq}</span>
+                </div>
+                <div class="config-info-item">
+                    <span class="config-info-label">网站标题</span>
+                    <span class="config-info-value">${configData.site.title}</span>
+                </div>
+            </div>
         </div>
     `;
 }
@@ -404,6 +457,7 @@ function renderSiteForm() {
     if (form.elements.title) form.elements.title.value = configData.site.title || '';
     if (form.elements.nickname) form.elements.nickname.value = configData.site.nickname || '';
     if (form.elements.qq) form.elements.qq.value = configData.site.qq || '';
+    if (form.elements.favicon) form.elements.favicon.value = configData.site.favicon || '';
     if (form.elements.signature) form.elements.signature.value = configData.site.signature || '';
     if (form.elements.bio) form.elements.bio.value = configData.site.bio || '';
 }

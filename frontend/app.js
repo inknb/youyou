@@ -131,6 +131,11 @@ async function initPage() {
         siteTitle.textContent = config.site.title;
     }
 
+    // 设置网站图标
+    if (config?.site?.favicon) {
+        updateFavicon(config.site.favicon);
+    }
+
     // 加载每日一言
     loadHitokoto();
 
@@ -543,4 +548,22 @@ function updateScheduleCount(count) {
     if (badge) {
         badge.textContent = `${count} 项`;
     }
+}
+
+// 更新网站图标
+function updateFavicon(faviconUrl) {
+    if (!faviconUrl) return;
+    
+    // 移除旧的 favicon
+    const oldFavicon = document.querySelector('link[rel="icon"]');
+    if (oldFavicon) {
+        oldFavicon.remove();
+    }
+    
+    // 创建新的 favicon
+    const newFavicon = document.createElement('link');
+    newFavicon.rel = 'icon';
+    newFavicon.type = 'image/x-icon';
+    newFavicon.href = faviconUrl;
+    document.head.appendChild(newFavicon);
 }
