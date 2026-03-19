@@ -12,9 +12,9 @@
   "admin": {
     "username": "3199169587",
     "password": "564215c82a366392285b56042c31ace8",
-    "token": "cb3ef51de2b3b7171bf116d135df8295fc6b6bee1f113c227556802d23553d5d",
-    "lastLogin": "2026-03-16T13:25:54.696Z",
-    "tokenExpiry": 1773753954696
+    "token": "d16eac219241e21ed4f8918e945230c3e1392a9cd93e1a7c314e2a636a086a3a",
+    "lastLogin": "2026-03-19T06:56:45.514Z",
+    "tokenExpiry": 1773989805514
   },
   "apis": {
     "anime": [
@@ -44,7 +44,7 @@
       "enabled": true
     },
     "weather": {
-      "url": "https://wttr.in",
+      "url": "https://uapis.cn/api/v1/misc/weather",
       "city": "佛山",
       "enabled": true
     }

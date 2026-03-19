@@ -639,38 +639,24 @@ app.get('/api/weather', async (req, res) => {
   }
 
   const weatherConfig = config.apis.weather;
-  let weatherUrl = weatherConfig.url || 'https://wttr.in';
-  const clientIP = getClientIP(req);
+  const weatherUrl = weatherConfig.url || 'https://uapis.cn/api/v1/misc/weather';
+  const city = weatherConfig.city || req.query.city || '';
+
+  // 构建 URL
+  let url = weatherUrl;
+  if (city) {
+    url = `${weatherUrl}?city=${encodeURIComponent(city)}`;
+  } else {
+    // 不传 city 参数，让 API 自动根据 IP 定位
+    // uapis.cn 会自动根据请求 IP 定位
+  }
 
   try {
-    // 如果配置的是 wttr.in
-    if (weatherUrl.includes('wttr.in')) {
-      const format = '?format=j1&lang=zh'; // 返回 JSON 格式，中文
-
-      // 优先使用配置的城市，其次使用IP定位
-      if (weatherConfig.city) {
-        weatherUrl = `${weatherUrl}/${encodeURIComponent(weatherConfig.city)}${format}`;
-      } else if (clientIP) {
-        // 使用用户IP进行定位
-        weatherUrl = `${weatherUrl}/${encodeURIComponent(clientIP)}${format}`;
-        console.log(`[天气 API] 使用IP定位: ${clientIP}`);
-      } else {
-        // 本地开发，让wttr.in自动检测服务器位置
-        weatherUrl = `${weatherUrl}${format}`;
-      }
-    } else if (weatherConfig.city && !weatherUrl.includes('?')) {
-      // 其他 API，添加城市参数
-      weatherUrl = `${weatherUrl}?city=${encodeURIComponent(weatherConfig.city)}`;
-    }
-
-    console.log(`[天气 API] 请求地址: ${weatherUrl}`);
+    console.log(`[天气 API] 请求地址: ${url}`);
 
     // 使用 node-fetch
     const fetch = (await import('node-fetch')).default;
-    const response = await fetch(weatherUrl, {
-      headers: {
-        'User-Agent': 'curl'
-      },
+    const response = await fetch(url, {
       timeout: 10000
     });
 
@@ -681,27 +667,20 @@ app.get('/api/weather', async (req, res) => {
     }
 
     const data = await response.json();
-    console.log(`[天气 API] 响应成功`);
+    console.log('[天气 API] 响应成功', data);
 
-    // 标准化数据格式
-    // 优先获取中文区域名，其次英文，再使用配置或默认值
-    const areaName = data.nearest_area?.[0];
-    const cityName = areaName?.areaName?.[0]?.value ||
-                     areaName?.region?.[0]?.value ||
-                     data.city ||
-                     weatherConfig.city ||
-                     '本地';
+    // uapis.cn 返回格式
+    if (!data.city || !data.weather) {
+      throw new Error('API 返回格式错误');
+    }
 
     const standardizedData = {
-      city: cityName,
-      temp: data.current_condition?.[0]?.temp_C || data.temp || '0',
-      weather: data.current_condition?.[0]?.lang_zh?.[0]?.value ||
-               data.current_condition?.[0]?.weatherDesc?.[0]?.value ||
-               data.info ||
-               getWeatherDescByCode(data.current_condition?.[0]?.weatherCode),
-      weatherCode: data.current_condition?.[0]?.weatherCode || '',
-      humidity: data.current_condition?.[0]?.humidity || '',
-      wind: data.current_condition?.[0]?.windspeedKmph || ''
+      city: data.city,
+      temp: data.temperature,
+      weather: data.weather,
+      weatherCode: data.weather_icon,
+      humidity: data.humidity,
+      wind: data.wind_direction + data.wind_power
     };
 
     res.json({ success: true, data: standardizedData });

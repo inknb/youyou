@@ -493,7 +493,7 @@ function initForms() {
         e.preventDefault();
         const formData = new FormData(e.target);
         const weatherConfig = {
-            url: formData.get('url') || 'https://api.vvhan.com/api/weather',
+            url: formData.get('url') || 'https://uapis.cn/api/v1/misc/weather',
             city: formData.get('city') || '',
             enabled: formData.get('enabled') === 'on'
         };
@@ -698,8 +698,8 @@ function renderApis() {
 
 // 渲染天气 API 配置
 function renderWeatherApi() {
-    const weather = configData.apis.weather || { url: 'https://wttr.in', enabled: true, city: '' };
-    document.getElementById('weather-url').value = weather.url || 'https://wttr.in';
+    const weather = configData.apis.weather || { url: 'https://uapis.cn/api/v1/misc/weather', enabled: true, city: '' };
+    document.getElementById('weather-url').value = weather.url || 'https://uapis.cn/api/v1/misc/weather';
     document.getElementById('weather-city').value = weather.city || '';
     document.getElementById('weather-enabled').checked = weather.enabled !== false;
 }
