@@ -174,6 +174,7 @@ INSERT INTO `site_config` (`config_key`, `config_value`, `config_type`, `descrip
 ('subtitle', '探索简洁、逻辑与二次元的平衡点', 'string', '网站副标题'),
 ('nickname', '悠悠', 'string', '昵称'),
 ('qq', '', 'string', 'QQ号'),
+('customAvatar', '', 'string', '自定义头像URL'),
 ('bio', '热爱二次元的平凡学生', 'string', '个人简介'),
 ('signature', '小小世界 开心至上', 'string', '个性签名'),
 ('start_date', CURDATE(), 'string', '网站开始日期'),

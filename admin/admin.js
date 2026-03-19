@@ -457,6 +457,7 @@ function renderSiteForm() {
     if (form.elements.title) form.elements.title.value = configData.site.title || '';
     if (form.elements.nickname) form.elements.nickname.value = configData.site.nickname || '';
     if (form.elements.qq) form.elements.qq.value = configData.site.qq || '';
+    if (form.elements.customAvatar) form.elements.customAvatar.value = configData.site.customAvatar || '';
     if (form.elements.favicon) form.elements.favicon.value = configData.site.favicon || '';
     if (form.elements.signature) form.elements.signature.value = configData.site.signature || '';
     if (form.elements.bio) form.elements.bio.value = configData.site.bio || '';

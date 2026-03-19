@@ -178,8 +178,14 @@ async function loadQQInfo() {
     const signatureEl = document.getElementById('qq-signature');
     const bioEl = document.getElementById('qq-bio');
     
-    // 先显示默认信息
-    avatarEl.src = `http://q.qlogo.cn/headimg_dl?dst_uin=${config.site.qq}&spec=640&img_type=jpg`;
+    // 设置头像：优先使用自定义头像，否则使用QQ头像
+    if (config.site.customAvatar) {
+        avatarEl.src = config.site.customAvatar;
+    } else if (config.site.qq) {
+        avatarEl.src = `http://q.qlogo.cn/headimg_dl?dst_uin=${config.site.qq}&spec=640&img_type=jpg`;
+    }
+    
+    // 设置其他信息
     nicknameEl.textContent = config.site.nickname;
     signatureEl.textContent = config.site.signature;
     bioEl.innerHTML = `<span class="bio-label">简介</span>${config.site.bio}`;
@@ -195,6 +201,10 @@ async function loadQQInfo() {
                 if (site.nickname) nicknameEl.textContent = site.nickname;
                 if (site.signature) signatureEl.textContent = site.signature;
                 if (site.bio) bioEl.innerHTML = `<span class="bio-label">简介</span>${site.bio}`;
+                // 如果有自定义头像则更新
+                if (site.customAvatar) {
+                    avatarEl.src = site.customAvatar;
+                }
             }
         } catch (err) {
             console.log('使用默认 QQ 信息');

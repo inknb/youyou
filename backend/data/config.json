@@ -12,9 +12,9 @@
   "admin": {
     "username": "3199169587",
     "password": "564215c82a366392285b56042c31ace8",
-    "token": "d16eac219241e21ed4f8918e945230c3e1392a9cd93e1a7c314e2a636a086a3a",
-    "lastLogin": "2026-03-19T06:56:45.514Z",
-    "tokenExpiry": 1773989805514
+    "token": "75f2004f5d9ae76c32c76f0bebc22e0f3899c130dc2aed72054dcfc2de5672ca",
+    "tokenExpiry": 1774025179479,
+    "lastLogin": "2026-03-19T16:46:19.479Z"
   },
   "apis": {
     "anime": [
