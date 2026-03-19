@@ -3,10 +3,21 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
+
+// 加载环境变量
+if (fs.existsSync(path.join(__dirname, '.env'))) {
+    require('dotenv').config();
+}
+
+// 初始化数据库
+const db = require('./db');
+db.initDatabase();
+
+// 数据访问层
+const store = require('./models/dataStore');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // Token 有效期（24小时）
 const TOKEN_EXPIRY = 24 * 60 * 60 * 1000;
@@ -22,60 +33,57 @@ app.use((req, res, next) => {
   next();
 });
 
-const DATA_FILE = path.join(__dirname, 'data', 'config.json');
+const LOCK_FILE = path.join(__dirname, 'data', 'install.lock');
 
-// 读取配置
-function readConfig() {
-  try {
-    const data = fs.readFileSync(DATA_FILE, 'utf8');
-    return JSON.parse(data);
-  } catch (err) {
-    console.error('读取配置失败:', err);
-    return null;
+// 安装锁定检查中间件（保护 API 路由）
+function installLockMiddleware(req, res, next) {
+  // 安装向导 API 不受限制
+  if (req.path.startsWith('/api/install')) {
+    return next();
   }
-}
 
-// 保存配置
-function writeConfig(config) {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(config, null, 2), 'utf8');
-    return true;
-  } catch (err) {
-    console.error('保存配置失败:', err);
-    return false;
+  // 检查是否已安装
+  if (!fs.existsSync(LOCK_FILE)) {
+    return res.status(503).json({
+      success: false,
+      message: '系统未安装，请先访问 /install 完成安装',
+      needInstall: true
+    });
   }
+
+  next();
 }
 
-// MD5 加密
-function md5(str) {
-  return crypto.createHash('md5').update(str).digest('hex');
-}
+// 安装页面静态文件服务（必须在锁定检查之前）
+app.use('/install', express.static(path.join(__dirname, '../install')));
 
-// 生成随机 Token
-function generateToken() {
-  return crypto.randomBytes(32).toString('hex');
-}
+// 安装向导 API 路由
+const installRouter = require('./routes/install');
+app.use('/api/install', installRouter);
+
+// 应用安装锁定中间件（保护业务 API）
+app.use('/api', installLockMiddleware);
 
 // 认证中间件
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
 
   if (!token) {
     return res.status(401).json({ success: false, message: '未登录', needLogin: true });
   }
 
-  const config = readConfig();
-  if (!config || !config.admin) {
+  const admin = await store.getAdmin();
+  if (!admin) {
     return res.status(500).json({ success: false, message: '配置错误' });
   }
 
   // 验证 Token
-  if (config.admin.token !== token) {
+  if (admin.token !== token) {
     return res.status(401).json({ success: false, message: 'Token 无效', needLogin: true });
   }
 
   // 检查 Token 是否过期
-  if (config.admin.tokenExpiry && Date.now() > config.admin.tokenExpiry) {
+  if (admin.tokenExpiry && Date.now() > admin.tokenExpiry) {
     return res.status(401).json({ success: false, message: '登录已过期', needLogin: true });
   }
 
@@ -87,39 +95,41 @@ function authMiddleware(req, res, next) {
 // ========== 认证 API ==========
 
 // 登录
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
     return res.status(400).json({ success: false, message: '请输入用户名和密码' });
   }
 
-  const config = readConfig();
-  if (!config || !config.admin) {
+  const admin = await store.getAdmin();
+  if (!admin) {
     return res.status(500).json({ success: false, message: '配置错误' });
   }
 
   // 验证用户名和密码
-  const passwordHash = md5(password);
-  if (username !== config.admin.username || passwordHash !== config.admin.password) {
+  const passwordHash = store.md5(password);
+  if (username !== admin.username || passwordHash !== admin.password) {
     return res.status(401).json({ success: false, message: '用户名或密码错误' });
   }
 
   // 生成新 Token
-  const token = generateToken();
-  config.admin.token = token;
-  config.admin.tokenExpiry = Date.now() + TOKEN_EXPIRY;
-  config.admin.lastLogin = new Date().toISOString();
+  const token = store.generateToken();
+  const updateData = {
+    token,
+    tokenExpiry: Date.now() + TOKEN_EXPIRY,
+    lastLogin: new Date().toISOString()
+  };
 
-  if (writeConfig(config)) {
+  if (await store.updateAdmin(updateData)) {
     console.log(`[登录] 用户 ${username} 登录成功`);
     res.json({
       success: true,
       message: '登录成功',
       data: {
         token,
-        username: config.admin.username,
-        lastLogin: config.admin.lastLogin
+        username: admin.username,
+        lastLogin: updateData.lastLogin
       }
     });
   } else {
@@ -128,31 +138,26 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 // 验证 Token
-app.get('/api/auth/verify', authMiddleware, (req, res) => {
-  const config = readConfig();
+app.get('/api/auth/verify', authMiddleware, async (req, res) => {
+  const admin = await store.getAdmin();
   res.json({
     success: true,
     data: {
-      username: config.admin.username,
-      lastLogin: config.admin.lastLogin
+      username: admin.username,
+      lastLogin: admin.lastLogin
     }
   });
 });
 
 // 登出
-app.post('/api/auth/logout', authMiddleware, (req, res) => {
-  const config = readConfig();
-  if (config && config.admin) {
-    config.admin.token = '';
-    config.admin.tokenExpiry = null;
-    writeConfig(config);
-    console.log('[登出] 用户已登出');
-  }
+app.post('/api/auth/logout', authMiddleware, async (req, res) => {
+  await store.updateAdmin({ token: '', tokenExpiry: null });
+  console.log('[登出] 用户已登出');
   res.json({ success: true, message: '已登出' });
 });
 
 // 修改密码
-app.post('/api/auth/change-password', authMiddleware, (req, res) => {
+app.post('/api/auth/change-password', authMiddleware, async (req, res) => {
   const { oldPassword, newPassword } = req.body;
 
   if (!oldPassword || !newPassword) {
@@ -163,24 +168,20 @@ app.post('/api/auth/change-password', authMiddleware, (req, res) => {
     return res.status(400).json({ success: false, message: '新密码至少需要6个字符' });
   }
 
-  const config = readConfig();
-  if (!config || !config.admin) {
+  const admin = await store.getAdmin();
+  if (!admin) {
     return res.status(500).json({ success: false, message: '配置错误' });
   }
 
   // 验证旧密码
-  const oldPasswordHash = md5(oldPassword);
-  if (oldPasswordHash !== config.admin.password) {
+  const oldPasswordHash = store.md5(oldPassword);
+  if (oldPasswordHash !== admin.password) {
     return res.status(401).json({ success: false, message: '旧密码错误' });
   }
 
   // 更新密码
-  config.admin.password = md5(newPassword);
-  // 清除 Token，强制重新登录
-  config.admin.token = '';
-  config.admin.tokenExpiry = null;
-
-  if (writeConfig(config)) {
+  const newPasswordHash = store.md5(newPassword);
+  if (await store.updateAdmin({ password: newPasswordHash, token: '', tokenExpiry: null })) {
     console.log('[密码] 密码已修改');
     res.json({ success: true, message: '密码已修改，请重新登录', needRelogin: true });
   } else {
@@ -189,7 +190,7 @@ app.post('/api/auth/change-password', authMiddleware, (req, res) => {
 });
 
 // 修改账户信息（用户名和密码）
-app.post('/api/auth/update-account', authMiddleware, (req, res) => {
+app.post('/api/auth/update-account', authMiddleware, async (req, res) => {
   const { username, oldPassword, newPassword } = req.body;
 
   if (!oldPassword) {
@@ -204,41 +205,42 @@ app.post('/api/auth/update-account', authMiddleware, (req, res) => {
     return res.status(400).json({ success: false, message: '新密码至少需要6个字符' });
   }
 
-  const config = readConfig();
-  if (!config || !config.admin) {
+  const admin = await store.getAdmin();
+  if (!admin) {
     return res.status(500).json({ success: false, message: '配置错误' });
   }
 
   // 验证当前密码
-  const oldPasswordHash = md5(oldPassword);
-  if (oldPasswordHash !== config.admin.password) {
+  const oldPasswordHash = store.md5(oldPassword);
+  if (oldPasswordHash !== admin.password) {
     return res.status(401).json({ success: false, message: '当前密码错误' });
   }
 
+  const updateData = {};
+
   // 更新用户名
-  if (username && username !== config.admin.username) {
-    config.admin.username = username;
+  if (username && username !== admin.username) {
+    updateData.username = username;
     console.log(`[账户] 用户名已修改为: ${username}`);
   }
 
   // 更新密码（如果提供了新密码）
   let needRelogin = false;
   if (newPassword) {
-    config.admin.password = md5(newPassword);
-    // 清除 Token，强制重新登录
-    config.admin.token = '';
-    config.admin.tokenExpiry = null;
+    updateData.password = store.md5(newPassword);
+    updateData.token = '';
+    updateData.tokenExpiry = null;
     needRelogin = true;
     console.log('[账户] 密码已修改');
   }
 
-  if (writeConfig(config)) {
+  if (await store.updateAdmin(updateData)) {
     res.json({
       success: true,
       message: needRelogin ? '账户信息已更新，请重新登录' : '账户信息已更新',
       needRelogin,
       data: {
-        username: config.admin.username
+        username: username || admin.username
       }
     });
   } else {
@@ -249,25 +251,10 @@ app.post('/api/auth/update-account', authMiddleware, (req, res) => {
 // ========== 公开 API（无需认证）==========
 
 // 获取前台配置（不包含敏感信息）
-app.get('/api/config', (req, res) => {
-  const config = readConfig();
+app.get('/api/config', async (req, res) => {
+  const config = await store.getPublicConfig();
   if (config) {
-    // 过滤敏感信息
-    const publicConfig = {
-      site: config.site,
-      apis: {
-        anime: config.apis?.anime || [],
-        hitokoto: config.apis?.hitokoto || [],
-        qqInfo: config.apis?.qqInfo,
-        weather: config.apis?.weather
-      },
-      tags: config.tags,
-      links: config.links,
-      schedule: config.schedule,
-      widgets: config.widgets,
-      activities: config.activities
-    };
-    res.json({ success: true, data: publicConfig });
+    res.json({ success: true, data: config });
   } else {
     res.status(500).json({ success: false, message: '读取配置失败' });
   }
@@ -276,12 +263,8 @@ app.get('/api/config', (req, res) => {
 // ========== 后台管理 API（需要认证）==========
 
 // 更新网站基本信息
-app.post('/api/config/site', authMiddleware, (req, res) => {
-  const config = readConfig();
-  if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
-  
-  config.site = { ...config.site, ...req.body };
-  if (writeConfig(config)) {
+app.post('/api/config/site', authMiddleware, async (req, res) => {
+  if (await store.updateSiteConfig(req.body)) {
     res.json({ success: true, message: '网站信息已更新' });
   } else {
     res.status(500).json({ success: false, message: '保存失败' });
@@ -289,12 +272,8 @@ app.post('/api/config/site', authMiddleware, (req, res) => {
 });
 
 // 更新 API 配置
-app.post('/api/config/apis', authMiddleware, (req, res) => {
-  const config = readConfig();
-  if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
-  
-  config.apis = { ...config.apis, ...req.body };
-  if (writeConfig(config)) {
+app.post('/api/config/apis', authMiddleware, async (req, res) => {
+  if (await store.updateApis(req.body)) {
     res.json({ success: true, message: 'API配置已更新' });
   } else {
     res.status(500).json({ success: false, message: '保存失败' });
@@ -302,12 +281,8 @@ app.post('/api/config/apis', authMiddleware, (req, res) => {
 });
 
 // 更新标签
-app.post('/api/config/tags', authMiddleware, (req, res) => {
-  const config = readConfig();
-  if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
-  
-  config.tags = req.body.tags;
-  if (writeConfig(config)) {
+app.post('/api/config/tags', authMiddleware, async (req, res) => {
+  if (await store.updateTags(req.body.tags)) {
     res.json({ success: true, message: '标签已更新' });
   } else {
     res.status(500).json({ success: false, message: '保存失败' });
@@ -315,12 +290,8 @@ app.post('/api/config/tags', authMiddleware, (req, res) => {
 });
 
 // 更新外链
-app.post('/api/config/links', authMiddleware, (req, res) => {
-  const config = readConfig();
-  if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
-  
-  config.links = req.body.links;
-  if (writeConfig(config)) {
+app.post('/api/config/links', authMiddleware, async (req, res) => {
+  if (await store.updateLinks(req.body.links)) {
     res.json({ success: true, message: '外链已更新' });
   } else {
     res.status(500).json({ success: false, message: '保存失败' });
@@ -330,15 +301,12 @@ app.post('/api/config/links', authMiddleware, (req, res) => {
 // ========== 日程管理 API ==========
 
 // 获取所有日程
-app.get('/api/schedule', (req, res) => {
-  const config = readConfig();
-  if (config) {
-    res.json({ 
-      success: true, 
-      data: {
-        courses: config.schedule.courses,
-        events: config.schedule.events
-      }
+app.get('/api/schedule', async (req, res) => {
+  const schedule = await store.getSchedule();
+  if (schedule) {
+    res.json({
+      success: true,
+      data: schedule
     });
   } else {
     res.status(500).json({ success: false, message: '读取失败' });
@@ -346,19 +314,11 @@ app.get('/api/schedule', (req, res) => {
 });
 
 // 添加课程
-app.post('/api/schedule/courses', authMiddleware, (req, res) => {
-  const config = readConfig();
-  if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
-
-  // 删除请求体中的 id 字段，强制生成新 ID
+app.post('/api/schedule/courses', authMiddleware, async (req, res) => {
   const { id, ...courseData } = req.body;
-  const newCourse = {
-    id: Date.now(),
-    ...courseData
-  };
-  config.schedule.courses.push(newCourse);
+  const newCourse = await store.addCourse(courseData);
 
-  if (writeConfig(config)) {
+  if (newCourse) {
     res.json({ success: true, message: '课程已添加', data: newCourse });
   } else {
     res.status(500).json({ success: false, message: '保存失败' });
@@ -366,35 +326,20 @@ app.post('/api/schedule/courses', authMiddleware, (req, res) => {
 });
 
 // 更新课程
-app.put('/api/schedule/courses/:id', authMiddleware, (req, res) => {
-  const config = readConfig();
-  if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
-
+app.put('/api/schedule/courses/:id', authMiddleware, async (req, res) => {
   const targetId = req.params.id;
-  const index = config.schedule.courses.findIndex(c => String(c.id) === String(targetId));
+  const updated = await store.updateCourse(targetId, req.body);
 
-  if (index === -1) {
-    return res.status(404).json({ success: false, message: '课程不存在' });
-  }
-
-  config.schedule.courses[index] = { ...config.schedule.courses[index], ...req.body };
-
-  if (writeConfig(config)) {
+  if (updated) {
     res.json({ success: true, message: '课程已更新' });
   } else {
-    res.status(500).json({ success: false, message: '保存失败' });
+    res.status(404).json({ success: false, message: '课程不存在或保存失败' });
   }
 });
 
 // 删除课程
-app.delete('/api/schedule/courses/:id', authMiddleware, (req, res) => {
-  const config = readConfig();
-  if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
-
-  const targetId = req.params.id;
-  config.schedule.courses = config.schedule.courses.filter(c => String(c.id) !== String(targetId));
-
-  if (writeConfig(config)) {
+app.delete('/api/schedule/courses/:id', authMiddleware, async (req, res) => {
+  if (await store.deleteCourse(req.params.id)) {
     res.json({ success: true, message: '课程已删除' });
   } else {
     res.status(500).json({ success: false, message: '保存失败' });
@@ -402,19 +347,11 @@ app.delete('/api/schedule/courses/:id', authMiddleware, (req, res) => {
 });
 
 // 添加日程安排
-app.post('/api/schedule/events', authMiddleware, (req, res) => {
-  const config = readConfig();
-  if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
-
-  // 删除请求体中的 id 字段，强制生成新 ID
+app.post('/api/schedule/events', authMiddleware, async (req, res) => {
   const { id, ...eventData } = req.body;
-  const newEvent = {
-    id: Date.now(),
-    ...eventData
-  };
-  config.schedule.events.push(newEvent);
+  const newEvent = await store.addEvent(eventData);
 
-  if (writeConfig(config)) {
+  if (newEvent) {
     res.json({ success: true, message: '日程已添加', data: newEvent });
   } else {
     res.status(500).json({ success: false, message: '保存失败' });
@@ -422,35 +359,19 @@ app.post('/api/schedule/events', authMiddleware, (req, res) => {
 });
 
 // 更新日程
-app.put('/api/schedule/events/:id', authMiddleware, (req, res) => {
-  const config = readConfig();
-  if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
+app.put('/api/schedule/events/:id', authMiddleware, async (req, res) => {
+  const updated = await store.updateEvent(req.params.id, req.body);
 
-  const targetId = req.params.id;
-  const index = config.schedule.events.findIndex(e => String(e.id) === String(targetId));
-
-  if (index === -1) {
-    return res.status(404).json({ success: false, message: '日程不存在' });
-  }
-
-  config.schedule.events[index] = { ...config.schedule.events[index], ...req.body };
-
-  if (writeConfig(config)) {
+  if (updated) {
     res.json({ success: true, message: '日程已更新' });
   } else {
-    res.status(500).json({ success: false, message: '保存失败' });
+    res.status(404).json({ success: false, message: '日程不存在或保存失败' });
   }
 });
 
 // 删除日程
-app.delete('/api/schedule/events/:id', authMiddleware, (req, res) => {
-  const config = readConfig();
-  if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
-
-  const targetId = req.params.id;
-  config.schedule.events = config.schedule.events.filter(e => String(e.id) !== String(targetId));
-
-  if (writeConfig(config)) {
+app.delete('/api/schedule/events/:id', authMiddleware, async (req, res) => {
+  if (await store.deleteEvent(req.params.id)) {
     res.json({ success: true, message: '日程已删除' });
   } else {
     res.status(500).json({ success: false, message: '保存失败' });
@@ -460,33 +381,17 @@ app.delete('/api/schedule/events/:id', authMiddleware, (req, res) => {
 // ========== 动态管理 API ==========
 
 // 获取所有动态
-app.get('/api/activities', (req, res) => {
-  const config = readConfig();
-  if (config) {
-    res.json({ success: true, data: config.activities || [] });
-  } else {
-    res.status(500).json({ success: false, message: '读取配置失败' });
-  }
+app.get('/api/activities', async (req, res) => {
+  const activities = await store.getActivities();
+  res.json({ success: true, data: activities || [] });
 });
 
 // 添加动态
-app.post('/api/activities', authMiddleware, (req, res) => {
-  const config = readConfig();
-  if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
-
-  // 删除请求体中的 id 字段，强制生成新 ID
+app.post('/api/activities', authMiddleware, async (req, res) => {
   const { id, ...activityData } = req.body;
-  const newActivity = {
-    id: Date.now(),
-    ...activityData
-  };
+  const newActivity = await store.addActivity(activityData);
 
-  if (!config.activities) {
-    config.activities = [];
-  }
-  config.activities.unshift(newActivity); // 加到最前面
-
-  if (writeConfig(config)) {
+  if (newActivity) {
     res.json({ success: true, message: '动态已添加', data: newActivity });
   } else {
     res.status(500).json({ success: false, message: '保存失败' });
@@ -494,171 +399,47 @@ app.post('/api/activities', authMiddleware, (req, res) => {
 });
 
 // 更新动态
-app.put('/api/activities/:id', authMiddleware, (req, res) => {
-  const config = readConfig();
-  if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
+app.put('/api/activities/:id', authMiddleware, async (req, res) => {
+  const updated = await store.updateActivity(req.params.id, req.body);
 
-  if (!config.activities) {
-    config.activities = [];
-  }
-
-  const targetId = req.params.id;
-  const index = config.activities.findIndex(a => String(a.id) === String(targetId));
-
-  if (index === -1) {
-    return res.status(404).json({ success: false, message: '动态不存在' });
-  }
-
-  config.activities[index] = { ...config.activities[index], ...req.body };
-
-  if (writeConfig(config)) {
+  if (updated) {
     res.json({ success: true, message: '动态已更新' });
   } else {
-    res.status(500).json({ success: false, message: '保存失败' });
+    res.status(404).json({ success: false, message: '动态不存在或保存失败' });
   }
 });
 
 // 删除动态
-app.delete('/api/activities/:id', authMiddleware, (req, res) => {
-  const config = readConfig();
-  if (!config) return res.status(500).json({ success: false, message: '读取配置失败' });
-
-  if (!config.activities) {
-    config.activities = [];
-  }
-
-  const targetId = req.params.id;
-  const originalLength = config.activities.length;
-  config.activities = config.activities.filter(a => String(a.id) !== String(targetId));
-
-  if (config.activities.length === originalLength) {
-    return res.status(404).json({ success: false, message: '动态不存在' });
-  }
-
-  if (writeConfig(config)) {
+app.delete('/api/activities/:id', authMiddleware, async (req, res) => {
+  if (await store.deleteActivity(req.params.id)) {
     res.json({ success: true, message: '动态已删除' });
   } else {
     res.status(500).json({ success: false, message: '保存失败' });
   }
 });
 
-// 根据天气代码获取中文描述
-function getWeatherDescByCode(code) {
-  if (!code) return null;
-  const codeNum = parseInt(code);
-
-  // 天气代码映射表（基于 wttr.in）
-  const weatherMap = {
-    113: '晴',
-    116: '多云',
-    119: '多云',
-    122: '阴',
-    143: '雾',
-    176: '小雨',
-    179: '雨夹雪',
-    182: '阵雪',
-    185: '阵雪',
-    200: '雷阵雨',
-    227: '小雪',
-    230: '大雪',
-    233: '大雪',
-    236: '暴雪',
-    248: '雾',
-    260: '雨夹雪',
-    263: '小雨',
-    266: '雨夹雪',
-    281: '阵雪',
-    284: '大雪',
-    293: '小雨',
-    296: '小雨',
-    299: '小雨',
-    302: '小雨',
-    305: '雨夹雪',
-    308: '中雨',
-    311: '中雨',
-    314: '中雨',
-    317: '大雨',
-    320: '大雨',
-    323: '大雨',
-    326: '冰雹',
-    329: '暴雨',
-    332: '暴雨',
-    335: '暴雪',
-    338: '暴雪',
-    350: '阵雪',
-    353: '小雨',
-    356: '大雨',
-    359: '暴雨',
-    362: '雨夹雪',
-    365: '阵雪',
-    368: '大雪',
-    371: '暴雪',
-    374: '暴雪',
-    377: '暴雨',
-    386: '雷阵雨',
-    389: '雷阵雨',
-    392: '雷阵雨',
-    395: '雷暴',
-    398: '雷暴'
-  };
-
-  return weatherMap[codeNum] || null;
-}
-
-// 获取用户真实IP
-function getClientIP(req) {
-  let ip = req.headers['x-forwarded-for'] ||
-            req.headers['x-real-ip'] ||
-            req.connection?.remoteAddress ||
-            req.socket?.remoteAddress ||
-            req.ip || '';
-
-  // 处理多个IP的情况（取第一个）
-  if (ip.includes(',')) {
-    ip = ip.split(',')[0].trim();
-  }
-
-  // 处理IPv6映射的IPv4地址
-  if (ip.startsWith('::ffff:')) {
-    ip = ip.substring(7);
-  }
-
-  // 本地开发时返回空，让wttr.in自动检测
-  if (ip === '::1' || ip === '127.0.0.1' || ip === 'localhost') {
-    return '';
-  }
-
-  return ip;
-}
-
 // ========== 天气 API 代理 ==========
 app.get('/api/weather', async (req, res) => {
-  const config = readConfig();
-  if (!config || !config.apis?.weather?.enabled) {
+  const apis = await store.getApis();
+
+  if (!apis || !apis.weather?.enabled) {
     return res.status(400).json({ success: false, message: '天气 API 未启用' });
   }
 
-  const weatherConfig = config.apis.weather;
+  const weatherConfig = apis.weather;
   const weatherUrl = weatherConfig.url || 'https://uapis.cn/api/v1/misc/weather';
   const city = weatherConfig.city || req.query.city || '';
 
-  // 构建 URL
   let url = weatherUrl;
   if (city) {
     url = `${weatherUrl}?city=${encodeURIComponent(city)}`;
-  } else {
-    // 不传 city 参数，让 API 自动根据 IP 定位
-    // uapis.cn 会自动根据请求 IP 定位
   }
 
   try {
     console.log(`[天气 API] 请求地址: ${url}`);
 
-    // 使用 node-fetch
     const fetch = (await import('node-fetch')).default;
-    const response = await fetch(url, {
-      timeout: 10000
-    });
+    const response = await fetch(url, { timeout: 10000 });
 
     console.log(`[天气 API] 响应状态: ${response.status}`);
 
@@ -669,7 +450,6 @@ app.get('/api/weather', async (req, res) => {
     const data = await response.json();
     console.log('[天气 API] 响应成功', data);
 
-    // uapis.cn 返回格式
     if (!data.city || !data.weather) {
       throw new Error('API 返回格式错误');
     }
@@ -694,14 +474,34 @@ app.get('/api/weather', async (req, res) => {
 });
 
 // ========== 静态文件服务（放在 API 路由之后）==========
+// 安装页面重定向（未安装时）
+app.get('/', (req, res, next) => {
+  if (!fs.existsSync(LOCK_FILE) && req.accepts('html')) {
+    return res.redirect('/install');
+  }
+  next();
+});
+
 app.use(express.static(path.join(__dirname, '../frontend')));
 app.use('/admin', express.static(path.join(__dirname, '../admin')));
+
+// 获取当前数据存储模式 API
+app.get('/api/system/info', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      mode: db.getMode(),
+      isMySQL: db.isMySQL()
+    }
+  });
+});
 
 // 启动服务器
 const server = app.listen(PORT, () => {
   console.log(`服务器运行在 http://localhost:${PORT}`);
   console.log(`前台页面: http://localhost:${PORT}`);
   console.log(`后台管理: http://localhost:${PORT}/admin`);
+  console.log(`数据存储模式: ${db.getMode().toUpperCase()}`);
 });
 
 server.on('error', (err) => {
@@ -711,4 +511,23 @@ server.on('error', (err) => {
     console.error('服务器启动失败:', err.message);
   }
   process.exit(1);
+});
+
+// 优雅关闭
+process.on('SIGTERM', async () => {
+  console.log('收到 SIGTERM 信号，正在关闭...');
+  await db.close();
+  server.close(() => {
+    console.log('服务器已关闭');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', async () => {
+  console.log('收到 SIGINT 信号，正在关闭...');
+  await db.close();
+  server.close(() => {
+    console.log('服务器已关闭');
+    process.exit(0);
+  });
 });

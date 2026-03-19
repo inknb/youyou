@@ -1,20 +1,23 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "悠悠个人主页后端服务",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "postinstall": "echo '请运行 npm install mysql2 dotenv 以完成依赖安装'"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["homepage", "personal", "express"],
+  "author": "悠悠",
+  "license": "MIT",
   "type": "commonjs",
   "dependencies": {
     "body-parser": "^2.2.2",
     "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
     "express": "^5.2.1",
+    "mysql2": "^3.11.0",
     "node-fetch": "^3.3.2"
   }
 }
