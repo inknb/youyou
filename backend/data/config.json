@@ -12,9 +12,9 @@
   "admin": {
     "username": "3199169587",
     "password": "564215c82a366392285b56042c31ace8",
-    "token": "75f2004f5d9ae76c32c76f0bebc22e0f3899c130dc2aed72054dcfc2de5672ca",
-    "tokenExpiry": 1774025179479,
-    "lastLogin": "2026-03-19T16:46:19.479Z"
+    "token": "207826230e0828898273a324d18a6d65129f53f2d97eb612d7c8f53a08d83f59",
+    "tokenExpiry": 1775928092083,
+    "lastLogin": "2026-04-10T17:21:32.083Z"
   },
   "apis": {
     "anime": [
@@ -94,17 +94,7 @@
     }
   ],
   "schedule": {
-    "courses": [
-      {
-        "id": 1773913310665,
-        "name": "程序设计",
-        "day": 4,
-        "location": "A-A-1",
-        "startTime": "12:00",
-        "endTime": "18:00",
-        "color": "#3b82f6"
-      }
-    ],
+    "courses": [],
     "events": []
   },
   "widgets": {
@@ -124,11 +114,5 @@
       ]
     }
   },
-  "activities": [
-    {
-      "id": 1773913283975,
-      "text": "最近找了个girlfriend",
-      "time": "一小时"
-    }
-  ]
+  "activities": []
 }

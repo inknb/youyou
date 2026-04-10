@@ -402,15 +402,15 @@ router.post('/execute/database', async (req, res) => {
 
         let sqlContent = fs.readFileSync(SCHEMA_FILE, 'utf8');
 
-        // 添加表前缀支持（如果需要）
+        // 添加表前缀支持（仅替换表名，不替换列名和索引名）
         if (database.prefix) {
-            sqlContent = sqlContent.replace(/`(\w+)`/g, (match, tableName) => {
-                const keywords = ['SET', 'DROP', 'CREATE', 'TABLE', 'IF', 'EXISTS', 'INSERT', 'INTO', 'VALUES', 'ENGINE', 'DEFAULT', 'CHARSET', 'COLLATE', 'COMMENT', 'PRIMARY', 'KEY', 'UNIQUE', 'AUTO_INCREMENT', 'NOT', 'NULL', 'CURRENT_TIMESTAMP', 'USE'];
-                if (keywords.includes(tableName.toUpperCase())) {
-                    return match;
-                }
-                return `\`${database.prefix}${tableName}\``;
-            });
+            // 只替换 SQL 语句中紧跟在 DROP TABLE IF EXISTS / CREATE TABLE / INSERT INTO 后的表名
+            sqlContent = sqlContent.replace(/(DROP\s+TABLE\s+IF\s+EXISTS\s+)`(\w+)`/gi,
+                `$1\`${database.prefix}$2\``);
+            sqlContent = sqlContent.replace(/(CREATE\s+TABLE\s+)`(\w+)`/gi,
+                `$1\`${database.prefix}$2\``);
+            sqlContent = sqlContent.replace(/(INSERT\s+INTO\s+)`(\w+)`/gi,
+                `$1\`${database.prefix}$2\``);
         }
 
         // 执行 SQL

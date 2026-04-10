@@ -8,16 +8,20 @@
     "dev": "node server.js",
     "postinstall": "echo '请运行 npm install mysql2 dotenv 以完成依赖安装'"
   },
-  "keywords": ["homepage", "personal", "express"],
+  "keywords": [
+    "homepage",
+    "personal",
+    "express"
+  ],
   "author": "悠悠",
   "license": "MIT",
   "type": "commonjs",
   "dependencies": {
     "body-parser": "^2.2.2",
     "cors": "^2.8.6",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.6.1",
     "express": "^5.2.1",
-    "mysql2": "^3.11.0",
+    "mysql2": "^3.22.0",
     "node-fetch": "^3.3.2"
   }
 }

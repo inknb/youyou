@@ -301,7 +301,7 @@ function closePasswordModal() {
 // 加载配置
 async function loadConfig() {
     try {
-        const res = await fetch(`${API_BASE}/api/config`);
+        const res = await fetch(`${API_BASE}/api/config`, { cache: 'no-store' });
         if (!res.ok) {
             throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         }
@@ -1094,9 +1094,7 @@ async function deleteCourse(id) {
 
         if (result.success) {
             showToast('课程已删除');
-            // 立即从本地数据中移除
-            configData.schedule.courses = configData.schedule.courses.filter(c => String(c.id) !== String(id));
-            renderSchedule();
+            await loadConfig();
         } else {
             showToast(result.message || '删除失败', 'error');
         }
@@ -1154,9 +1152,7 @@ async function deleteEvent(id) {
 
         if (result.success) {
             showToast('日程已删除');
-            // 立即从本地数据中移除
-            configData.schedule.events = configData.schedule.events.filter(e => String(e.id) !== String(id));
-            renderSchedule();
+            await loadConfig();
         } else {
             showToast(result.message || '删除失败', 'error');
         }
@@ -1236,9 +1232,7 @@ async function deleteActivity(id) {
 
         if (result.success) {
             showToast('动态已删除');
-            // 立即从本地数据中移除
-            configData.activities = configData.activities.filter(a => String(a.id) !== String(id));
-            renderActivities();
+            await loadConfig();
         } else {
             showToast(result.message || '删除失败', 'error');
         }

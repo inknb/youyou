@@ -19,11 +19,23 @@ const store = require('./models/dataStore');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// 禁用 ETag，防止浏览器缓存 API 响应导致数据不同步
+app.set('etag', false);
+
 // Token 有效期（24小时）
 const TOKEN_EXPIRY = 24 * 60 * 60 * 1000;
 
 // 中间件
 app.use(cors());
+
+// API 响应不缓存，确保前端始终获取最新数据
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  next();
+});
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 

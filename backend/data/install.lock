@@ -1,7 +1,7 @@
 {
   "locked": true,
-  "installedAt": "2026-03-19T16:46:00.210Z",
+  "installedAt": "2026-04-10T17:21:21.386Z",
   "installerIp": "::1",
   "version": "1.0.0",
-  "mode": "json"
+  "mode": "mysql"
 }

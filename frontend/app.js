@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 // 加载配置
 async function loadConfig() {
     try {
-        const res = await fetch(`${API_BASE}/api/config`);
+        const res = await fetch(`${API_BASE}/api/config`, { cache: 'no-store' });
         const data = await res.json();
         if (data.success) {
             config = data.data;
@@ -193,7 +193,7 @@ async function loadQQInfo() {
     // 尝试获取 QQ API 数据
     if (config.apis.qqInfo && config.apis.qqInfo.enabled) {
         try {
-            const res = await fetch(`${API_BASE}/api/config`);
+            const res = await fetch(`${API_BASE}/api/config`, { cache: 'no-store' });
             const data = await res.json();
             if (data.success && data.data.site) {
                 // 使用服务端配置更新
@@ -289,7 +289,7 @@ function loadAnimeImage() {
 // 加载日程
 async function loadSchedule() {
     try {
-        const res = await fetch(`${API_BASE}/api/schedule`);
+        const res = await fetch(`${API_BASE}/api/schedule`, { cache: 'no-store' });
         const data = await res.json();
         
         if (!data.success) return;
@@ -416,6 +416,15 @@ setInterval(() => {
     }
 }, 60000);
 
+// 页面重新可见时刷新数据，确保后台修改后切回前台能看到最新内容
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && config) {
+        loadConfig().then(() => {
+            initPage();
+        });
+    }
+});
+
 // 更新时间和日期
 function updateDateTime() {
     const now = new Date();
@@ -444,7 +453,7 @@ async function loadWeather() {
     }
 
     try {
-        const res = await fetch(`${API_BASE}/api/weather`);
+        const res = await fetch(`${API_BASE}/api/weather`, { cache: 'no-store' });
         const result = await res.json();
 
         if (result.success && result.data) {
