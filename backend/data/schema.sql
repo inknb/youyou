@@ -1,5 +1,9 @@
 -- 悠悠个人主页数据库结构
 -- 创建时间: 自动生成
+--
+-- ⚠️ 警告: 本脚本包含 DROP TABLE，仅供首次安装使用。
+--    在已有数据的库上重复执行会清空全部数据！
+--    表前缀由安装向导在执行时动态替换，如需 DB_PREFIX 请保持此处表名无前缀。
 
 -- 设置字符集
 SET NAMES utf8mb4;
@@ -55,7 +59,7 @@ CREATE TABLE `api_config` (
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_api_type` (`api_type`)
+  UNIQUE KEY `uk_type_name` (`api_type`, `name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='API配置表';
 
 -- ----------------------------
@@ -135,7 +139,8 @@ CREATE TABLE `activities` (
   `time_desc` varchar(100) DEFAULT NULL COMMENT '时间描述',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='动态表';
 
 -- ----------------------------

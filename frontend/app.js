@@ -1,10 +1,37 @@
-// API 基础地址
-const API_BASE = window.location.origin.includes('localhost') 
-    ? 'http://localhost:3000' 
-    : window.location.origin;
+// API 基础地址（同源部署，直接使用当前源）
+const API_BASE = window.location.origin;
 
 // 全局配置
 let config = null;
+
+// HTML 转义，防止 XSS
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// URL 协议白名单（仅允许 http/https，防止 javascript: 等协议）
+function sanitizeUrl(url) {
+    if (typeof url !== 'string') return '#';
+    const trimmed = url.trim();
+    return /^https?:\/\//i.test(trimmed) ? trimmed : '#';
+}
+
+// 颜色值校验（防止 style 属性注入）
+function sanitizeColor(color, fallback = '#3b82f6') {
+    return /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : fallback;
+}
+
+// 带时间戳的图片 URL（正确处理已有 query 的情况）
+function withTimestamp(url) {
+    const sep = url.includes('?') ? '&' : '?';
+    return `${url}${sep}t=${Date.now()}`;
+}
 
 // 初始化
 document.addEventListener('DOMContentLoaded', async () => {
@@ -19,6 +46,9 @@ async function loadConfig() {
         const data = await res.json();
         if (data.success) {
             config = data.data;
+        } else {
+            console.error('加载配置失败:', data.message);
+            config = getDefaultConfig();
         }
     } catch (err) {
         console.error('加载配置失败:', err);
@@ -139,9 +169,9 @@ async function initPage() {
     // 加载每日一言
     loadHitokoto();
 
-    // 启动时间更新
+    // 启动时间更新（只启动一次，避免重复 initPage 叠加定时器）
     updateDateTime();
-    setInterval(updateDateTime, 1000);
+    startClockOnce();
 
     // 加载天气（使用 IP 定位）
     loadWeather();
@@ -177,46 +207,31 @@ async function loadQQInfo() {
     const nicknameEl = document.getElementById('qq-nickname');
     const signatureEl = document.getElementById('qq-signature');
     const bioEl = document.getElementById('qq-bio');
-    
+    const site = config.site || {};
+
     // 设置头像：优先使用自定义头像，否则使用QQ头像
-    if (config.site.customAvatar) {
-        avatarEl.src = config.site.customAvatar;
-    } else if (config.site.qq) {
-        avatarEl.src = `http://q.qlogo.cn/headimg_dl?dst_uin=${config.site.qq}&spec=640&img_type=jpg`;
+    if (site.customAvatar) {
+        avatarEl.src = sanitizeUrl(site.customAvatar);
+    } else if (site.qq) {
+        avatarEl.src = `https://q.qlogo.cn/headimg_dl?dst_uin=${encodeURIComponent(site.qq)}&spec=640&img_type=jpg`;
     }
-    
-    // 设置其他信息
-    nicknameEl.textContent = config.site.nickname;
-    signatureEl.textContent = config.site.signature;
-    bioEl.innerHTML = `<span class="bio-label">简介</span>${config.site.bio}`;
-    
-    // 尝试获取 QQ API 数据
-    if (config.apis.qqInfo && config.apis.qqInfo.enabled) {
-        try {
-            const res = await fetch(`${API_BASE}/api/config`, { cache: 'no-store' });
-            const data = await res.json();
-            if (data.success && data.data.site) {
-                // 使用服务端配置更新
-                const site = data.data.site;
-                if (site.nickname) nicknameEl.textContent = site.nickname;
-                if (site.signature) signatureEl.textContent = site.signature;
-                if (site.bio) bioEl.innerHTML = `<span class="bio-label">简介</span>${site.bio}`;
-                // 如果有自定义头像则更新
-                if (site.customAvatar) {
-                    avatarEl.src = site.customAvatar;
-                }
-            }
-        } catch (err) {
-            console.log('使用默认 QQ 信息');
-        }
-    }
+
+    // 设置其他信息（textContent 天然防 XSS）
+    nicknameEl.textContent = site.nickname || '';
+    signatureEl.textContent = site.signature || '';
+    bioEl.innerHTML = '';
+    const bioLabel = document.createElement('span');
+    bioLabel.className = 'bio-label';
+    bioLabel.textContent = '简介';
+    bioEl.appendChild(bioLabel);
+    bioEl.appendChild(document.createTextNode(site.bio || ''));
 }
 
 // 渲染标签
 function renderTags() {
     const container = document.getElementById('tag-group');
-    container.innerHTML = config.tags.map(tag => `
-        <span class="tag"><span class="tag-dot"></span>${tag.name}</span>
+    container.innerHTML = (config.tags || []).map(tag => `
+        <span class="tag"><span class="tag-dot"></span>${escapeHtml(tag.name)}</span>
     `).join('');
 }
 
@@ -231,9 +246,9 @@ function renderLinks() {
     }
 
     container.innerHTML = config.links.map(link => `
-        <a href="${link.url}" target="_blank" class="link-grid-item" title="${link.name}">
+        <a href="${escapeHtml(sanitizeUrl(link.url))}" target="_blank" rel="noopener noreferrer" class="link-grid-item" title="${escapeHtml(link.name)}">
             <div class="link-grid-icon">
-                ${link.icon ? `<img src="${link.icon}" alt="${link.name}" onerror="this.style.display='none'">` : ''}
+                ${link.icon ? `<img src="${escapeHtml(sanitizeUrl(link.icon))}" alt="${escapeHtml(link.name)}" onerror="this.style.display='none'">` : ''}
             </div>
         </a>
     `).join('');
@@ -248,13 +263,13 @@ function renderActivities() {
         container.innerHTML = '<div class="activity-item"><div class="activity-content"><div class="activity-text">暂无动态</div></div></div>'
         return;
     }
-    
+
     container.innerHTML = activities.map(item => `
         <div class="activity-item">
             <div class="activity-dot"></div>
             <div class="activity-content">
-                <div class="activity-text">${item.text}</div>
-                <div class="activity-time">${item.time}</div>
+                <div class="activity-text">${escapeHtml(item.text)}</div>
+                <div class="activity-time">${escapeHtml(item.time)}</div>
             </div>
         </div>
     `).join('');
@@ -263,27 +278,27 @@ function renderActivities() {
 // 加载二次元图片
 function loadAnimeImage() {
     const imgDiv = document.getElementById('anime-img');
-    const enabledApis = config.apis.anime.filter(api => api.enabled).sort((a, b) => a.priority - b.priority);
-    
+    const enabledApis = (config.apis?.anime || []).filter(api => api.enabled).sort((a, b) => a.priority - b.priority);
+
     if (enabledApis.length === 0) return;
-    
+
     // 尝试加载第一个 API
     const primaryApi = enabledApis[0];
     const img = new Image();
-    
+
     img.onload = () => {
-        imgDiv.style.backgroundImage = `url(${primaryApi.url}?t=${Date.now()})`;
+        imgDiv.style.backgroundImage = `url(${withTimestamp(primaryApi.url)})`;
     };
-    
+
     img.onerror = () => {
         // 失败则尝试第二个
         if (enabledApis.length > 1) {
             const backupApi = enabledApis[1];
-            imgDiv.style.backgroundImage = `url(${backupApi.url}?t=${Date.now()})`;
+            imgDiv.style.backgroundImage = `url(${withTimestamp(backupApi.url)})`;
         }
     };
-    
-    img.src = `${primaryApi.url}?t=${Date.now()}`;
+
+    img.src = withTimestamp(primaryApi.url);
 }
 
 // 加载日程
@@ -331,18 +346,18 @@ function renderSchedule(courses, events) {
     container.innerHTML = todayItems.map(item => {
         const isCurrent = currentTime >= item.startTime && currentTime <= item.endTime;
         const typeName = item.type === 'course' ? '课程' : '日程';
-        const itemColor = item.color || '#02539a';
+        const itemColor = sanitizeColor(item.color, '#02539a');
 
         return `
             <div class="schedule-item ${isCurrent ? 'current' : ''}" style="--item-color: ${itemColor}">
                 <div class="schedule-time">
-                    <span class="time-start">${item.startTime}</span>
+                    <span class="time-start">${escapeHtml(item.startTime)}</span>
                     <span class="time-separator"></span>
-                    <span class="time-end">${item.endTime}</span>
+                    <span class="time-end">${escapeHtml(item.endTime)}</span>
                 </div>
                 <div class="schedule-info">
-                    <div class="schedule-name">${item.name}</div>
-                    ${item.location ? `<div class="schedule-location">${item.location}</div>` : ''}
+                    <div class="schedule-name">${escapeHtml(item.name)}</div>
+                    ${item.location ? `<div class="schedule-location">${escapeHtml(item.location)}</div>` : ''}
                 </div>
                 <span class="schedule-type" style="background: ${itemColor}12; color: ${itemColor}; border: 1px solid ${itemColor}30;">
                     ${typeName}
@@ -372,23 +387,34 @@ function checkCurrentSchedule(courses, events) {
     
     const alertEl = document.getElementById('schedule-alert');
     const alertText = document.getElementById('alert-text');
-    
+
+    const setAlert = (prefix, name, suffix) => {
+        alertEl.style.display = 'block';
+        alertText.textContent = '';
+        alertText.appendChild(document.createTextNode(prefix));
+        const strong = document.createElement('strong');
+        strong.textContent = name;
+        alertText.appendChild(strong);
+        if (suffix) alertText.appendChild(document.createTextNode(suffix));
+    };
+
     if (currentCourse) {
-        alertEl.style.display = 'block';
-        alertText.innerHTML = `正在上课：<strong>${currentCourse.name}</strong> @ ${currentCourse.location || '未知地点'}`;
+        setAlert('正在上课：', currentCourse.name, ` @ ${currentCourse.location || '未知地点'}`);
     } else if (currentEvent) {
-        alertEl.style.display = 'block';
-        alertText.innerHTML = `正在进行：<strong>${currentEvent.name}</strong>`;
+        setAlert('正在进行：', currentEvent.name);
     } else {
         alertEl.style.display = 'none';
     }
 }
 
 // 初始化 Sakana 挂件
+let sakanaInitialized = false;
 function initSakana() {
-    if (!config.widgets.sakana.enabled) return;
-    
-    const characters = config.widgets.sakana.characters;
+    if (sakanaInitialized) return;
+    if (typeof SakanaWidget === 'undefined') return;
+    if (!config.widgets?.sakana?.enabled) return;
+
+    const characters = config.widgets.sakana.characters || [];
     
     characters.forEach(char => {
         if (char.position === 'right') {
@@ -407,6 +433,8 @@ function initSakana() {
             }).mount('#sakana-widget-left');
         }
     });
+
+    sakanaInitialized = true;
 }
 
 // 每分钟刷新一次日程状态
@@ -426,6 +454,12 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // 更新时间和日期
+let clockTimer = null;
+function startClockOnce() {
+    if (clockTimer) return;
+    clockTimer = setInterval(updateDateTime, 1000);
+}
+
 function updateDateTime() {
     const now = new Date();
     
@@ -540,25 +574,25 @@ function updateStats() {
 // 刷新二次元图片
 function refreshImage() {
     const imgDiv = document.getElementById('anime-img');
-    const enabledApis = config.apis.anime.filter(api => api.enabled).sort((a, b) => a.priority - b.priority);
-    
+    const enabledApis = (config.apis?.anime || []).filter(api => api.enabled).sort((a, b) => a.priority - b.priority);
+
     if (enabledApis.length === 0) return;
-    
+
     // 随机选择一个 API
     const randomApi = enabledApis[Math.floor(Math.random() * enabledApis.length)];
-    
+
     // 添加旋转动画
     imgDiv.style.opacity = '0.5';
-    
+
     const img = new Image();
     img.onload = () => {
-        imgDiv.style.backgroundImage = `url(${randomApi.url}?t=${Date.now()})`;
+        imgDiv.style.backgroundImage = `url(${withTimestamp(randomApi.url)})`;
         imgDiv.style.opacity = '1';
     };
     img.onerror = () => {
         imgDiv.style.opacity = '1';
     };
-    img.src = `${randomApi.url}?t=${Date.now()}`;
+    img.src = withTimestamp(randomApi.url);
 }
 
 // 更新日程数量徽章

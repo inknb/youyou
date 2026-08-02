@@ -4,6 +4,29 @@ const API_BASE = window.location.origin;
 // 全局配置数据
 let configData = null;
 
+// HTML 转义，防止 XSS
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// URL 协议白名单（仅允许 http/https）
+function sanitizeUrl(url) {
+    if (typeof url !== 'string') return '';
+    const trimmed = url.trim();
+    return /^https?:\/\//i.test(trimmed) ? trimmed : '';
+}
+
+// 颜色值校验（防止 style 属性注入）
+function sanitizeColor(color, fallback = '#3b82f6') {
+    return /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : fallback;
+}
+
 // Token 管理
 const TOKEN_KEY = 'admin_token';
 
@@ -18,6 +41,9 @@ function setToken(token) {
 function clearToken() {
     localStorage.removeItem(TOKEN_KEY);
 }
+
+// 401 跳转去重
+let redirectingToLogin = false;
 
 // 带认证的 fetch 封装
 async function authFetch(url, options = {}) {
@@ -36,13 +62,34 @@ async function authFetch(url, options = {}) {
         headers
     });
 
-    const data = await res.json();
+    // 先判断 401，再解析 body（避免 401 空响应导致 json() 抛错）
+    if (res.status === 401) {
+        clearToken();
+        if (!redirectingToLogin) {
+            redirectingToLogin = true;
+            showLoginPage();
+            showToast('登录已过期，请重新登录', 'error');
+            setTimeout(() => { redirectingToLogin = false; }, 1000);
+        }
+        throw new Error('需要重新登录');
+    }
+
+    let data;
+    try {
+        data = await res.json();
+    } catch (e) {
+        throw new Error(`服务器响应格式错误 (HTTP ${res.status})`);
+    }
 
     // 检查是否需要重新登录
-    if (data.needLogin || res.status === 401) {
+    if (data.needLogin) {
         clearToken();
-        showLoginPage();
-        showToast('登录已过期，请重新登录', 'error');
+        if (!redirectingToLogin) {
+            redirectingToLogin = true;
+            showLoginPage();
+            showToast('登录已过期，请重新登录', 'error');
+            setTimeout(() => { redirectingToLogin = false; }, 1000);
+        }
         throw new Error('需要重新登录');
     }
 
@@ -70,6 +117,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await loadConfig();
                 initNavigation();
                 initForms();
+            } else {
+                clearToken();
+                showLoginPage();
             }
         } catch (err) {
             showLoginPage();
@@ -173,6 +223,7 @@ function initLoginForm() {
 // 初始化修改密码表单
 function initPasswordForm() {
     const form = document.getElementById('password-form');
+    if (!form) return;
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const formData = new FormData(form);
@@ -289,13 +340,16 @@ async function logout() {
 
 // 打开修改密码弹窗
 function openPasswordModal() {
-    document.getElementById('password-modal').classList.add('show');
+    const modal = document.getElementById('password-modal');
+    if (!modal) return;
+    modal.classList.add('show');
     document.getElementById('password-form').reset();
 }
 
 // 关闭修改密码弹窗
 function closePasswordModal() {
-    document.getElementById('password-modal').classList.remove('show');
+    const modal = document.getElementById('password-modal');
+    if (modal) modal.classList.remove('show');
 }
 
 // 加载配置
@@ -308,6 +362,7 @@ async function loadConfig() {
         const data = await res.json();
         if (data.success) {
             configData = data.data;
+            removeErrorBanner();
             renderAll();
         } else {
             throw new Error(data.message || '返回数据格式错误');
@@ -315,21 +370,29 @@ async function loadConfig() {
     } catch (err) {
         console.error('加载配置失败:', err);
         showToast(`加载配置失败: ${err.message}`, 'error');
-        
-        // 显示错误信息在页面上
-        document.querySelector('.main-content').innerHTML = `
-            <div class="card" style="text-align: center; padding: 60px;">
-                <h2 style="color: #ef4444; margin-bottom: 16px;">无法连接到后端服务器</h2>
-                <p style="color: var(--text-sub); margin-bottom: 24px;">
-                    请确保后端服务器已启动<br>
-                    在 backend 目录运行: <code style="background: #f1f5f9; padding: 4px 8px; border-radius: 4px;">npm start</code>
-                </p>
-                <p style="font-size: 0.85rem; color: #999;">
-                    错误详情: ${err.message}
-                </p>
-            </div>
-        `;
+        showErrorBanner(err.message);
     }
+}
+
+// 错误横幅（不销毁主内容区 DOM）
+function showErrorBanner(detail) {
+    removeErrorBanner();
+    const main = document.querySelector('.main-content');
+    if (!main) return;
+    const banner = document.createElement('div');
+    banner.id = 'load-error-banner';
+    banner.className = 'card';
+    banner.style.cssText = 'text-align:center;padding:24px;margin-bottom:16px;border:1px solid #fecaca;background:#fef2f2;';
+    banner.innerHTML = `
+        <p style="color:#ef4444;font-weight:600;margin-bottom:8px;">无法连接到后端服务器</p>
+        <p style="color:var(--text-sub);font-size:0.85rem;">请确保后端已启动（backend 目录运行 npm start），然后 <a href="javascript:location.reload()" style="color:var(--primary-blue);">刷新页面</a></p>
+        <p style="font-size:0.8rem;color:#999;margin-top:8px;">${escapeHtml(detail || '')}</p>
+    `;
+    main.prepend(banner);
+}
+
+function removeErrorBanner() {
+    document.getElementById('load-error-banner')?.remove();
 }
 
 // 渲染所有内容
@@ -345,7 +408,10 @@ function renderAll() {
 }
 
 // ========== 导航切换 ==========
+let navInitialized = false;
 function initNavigation() {
+    if (navInitialized) return;
+    navInitialized = true;
     document.querySelectorAll('.nav-link').forEach(link => {
         link.addEventListener('click', () => {
             const section = link.dataset.section;
@@ -366,6 +432,11 @@ function renderDashboard() {
     const stats = document.getElementById('dashboard-stats');
     if (!configData) return;
 
+    const animeCount = configData.apis?.anime?.length || 0;
+    const tagCount = configData.tags?.length || 0;
+    const linkCount = configData.links?.length || 0;
+    const site = configData.site || {};
+
     stats.innerHTML = `
         <div class="stats-grid-container">
             <div class="stat-card" data-color="#3b82f6">
@@ -377,7 +448,7 @@ function renderDashboard() {
                     </svg>
                 </div>
                 <div class="stat-content">
-                    <div class="stat-value">${configData.apis.anime.length}</div>
+                    <div class="stat-value">${animeCount}</div>
                     <div class="stat-label">图片 API</div>
                 </div>
             </div>
@@ -389,7 +460,7 @@ function renderDashboard() {
                     </svg>
                 </div>
                 <div class="stat-content">
-                    <div class="stat-value">${configData.tags.length}</div>
+                    <div class="stat-value">${tagCount}</div>
                     <div class="stat-label">个人标签</div>
                 </div>
             </div>
@@ -401,7 +472,7 @@ function renderDashboard() {
                     </svg>
                 </div>
                 <div class="stat-content">
-                    <div class="stat-value">${configData.links.length}</div>
+                    <div class="stat-value">${linkCount}</div>
                     <div class="stat-label">外链数量</div>
                 </div>
             </div>
@@ -428,7 +499,7 @@ function renderDashboard() {
             <div class="config-info-grid">
                 <div class="config-info-item">
                     <span class="config-info-label">昵称</span>
-                    <span class="config-info-value">${configData.site.nickname}</span>
+                    <span class="config-info-value">${escapeHtml(site.nickname)}</span>
                 </div>
                 <div class="config-info-item">
                     <span class="config-info-label">问候语</span>
@@ -436,16 +507,18 @@ function renderDashboard() {
                 </div>
                 <div class="config-info-item">
                     <span class="config-info-label">QQ</span>
-                    <span class="config-info-value">${configData.site.qq}</span>
+                    <span class="config-info-value">${escapeHtml(site.qq)}</span>
                 </div>
                 <div class="config-info-item">
                     <span class="config-info-label">网站标题</span>
-                    <span class="config-info-value">${configData.site.title}</span>
+                    <span class="config-info-value">${escapeHtml(site.title)}</span>
                 </div>
             </div>
         </div>
     `;
 }
+
+let formsInitialized = false;
 
 // ========== 网站信息 ==========
 function renderSiteForm() {
@@ -454,16 +527,20 @@ function renderSiteForm() {
     if (!form) return;
 
     // 设置所有字段
-    if (form.elements.title) form.elements.title.value = configData.site.title || '';
-    if (form.elements.nickname) form.elements.nickname.value = configData.site.nickname || '';
-    if (form.elements.qq) form.elements.qq.value = configData.site.qq || '';
-    if (form.elements.customAvatar) form.elements.customAvatar.value = configData.site.customAvatar || '';
-    if (form.elements.favicon) form.elements.favicon.value = configData.site.favicon || '';
-    if (form.elements.signature) form.elements.signature.value = configData.site.signature || '';
-    if (form.elements.bio) form.elements.bio.value = configData.site.bio || '';
+    const site = configData.site || {};
+    if (form.elements.title) form.elements.title.value = site.title || '';
+    if (form.elements.nickname) form.elements.nickname.value = site.nickname || '';
+    if (form.elements.qq) form.elements.qq.value = site.qq || '';
+    if (form.elements.customAvatar) form.elements.customAvatar.value = site.customAvatar || '';
+    if (form.elements.favicon) form.elements.favicon.value = site.favicon || '';
+    if (form.elements.signature) form.elements.signature.value = site.signature || '';
+    if (form.elements.bio) form.elements.bio.value = site.bio || '';
 }
 
 function initForms() {
+    if (formsInitialized) return;
+    formsInitialized = true;
+
     // 初始化账户设置表单
     initAccountForm();
     
@@ -518,16 +595,27 @@ function initForms() {
     // 链接表单
     document.getElementById('link-form').addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (!configData) return;
         const formData = new FormData(e.target);
         const link = Object.fromEntries(formData);
         const index = document.getElementById('link-index').value;
-        
+
+        if (!link.name || !/^https?:\/\//i.test(link.url || '')) {
+            showToast('链接名称必填，地址需以 http:// 或 https:// 开头', 'error');
+            return;
+        }
+        if (link.icon && !/^https?:\/\//i.test(link.icon)) {
+            showToast('图标地址需以 http:// 或 https:// 开头', 'error');
+            return;
+        }
+
+        if (!Array.isArray(configData.links)) configData.links = [];
         if (index !== '') {
             configData.links[parseInt(index)] = link;
         } else {
             configData.links.push(link);
         }
-        
+
         await saveLinks();
         closeLinkModal();
     });
@@ -539,6 +627,15 @@ function initForms() {
         const course = Object.fromEntries(formData);
         course.day = parseInt(course.day);
         course.color = course.color || '#3b82f6';
+
+        if (!course.name || !course.startTime || !course.endTime) {
+            showToast('课程名称和起止时间必填', 'error');
+            return;
+        }
+        if (course.startTime >= course.endTime) {
+            showToast('结束时间必须晚于开始时间', 'error');
+            return;
+        }
 
         // 删除空的 id 字段，避免覆盖后端生成的 ID
         if (!course.id) delete course.id;
@@ -580,6 +677,15 @@ function initForms() {
         event.day = parseInt(event.day);
         event.color = event.color || '#22c55e';
 
+        if (!event.name || !event.startTime || !event.endTime) {
+            showToast('日程名称和起止时间必填', 'error');
+            return;
+        }
+        if (event.startTime >= event.endTime) {
+            showToast('结束时间必须晚于开始时间', 'error');
+            return;
+        }
+
         // 删除空的 id 字段，避免覆盖后端生成的 ID
         if (!event.id) delete event.id;
 
@@ -617,6 +723,11 @@ function initForms() {
         e.preventDefault();
         const formData = new FormData(e.target);
         const activity = Object.fromEntries(formData);
+
+        if (!activity.text) {
+            showToast('动态内容必填', 'error');
+            return;
+        }
 
         // 删除空的 id 字段，避免覆盖后端生成的 ID
         if (!activity.id) delete activity.id;
@@ -660,8 +771,8 @@ function renderApis() {
     
     tbody.innerHTML = configData.apis.anime.map((api, index) => `
         <tr>
-            <td>${api.name}</td>
-            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${api.url}</td>
+            <td>${escapeHtml(api.name)}</td>
+            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(api.url)}</td>
             <td>${api.priority}</td>
             <td>
                 <span style="padding: 4px 12px; border-radius: 100px; font-size: 0.8rem; ${api.enabled ? 'background: #dcfce7; color: #166534;' : 'background: #fee2e2; color: #991b1b;'}">
@@ -677,17 +788,18 @@ function renderApis() {
         </tr>
     `).join('');
     
+    const qqInfo = configData.apis.qqInfo || { url: '', enabled: false };
     const qqConfig = document.getElementById('qq-api-config');
     qqConfig.innerHTML = `
         <div class="form-row">
             <div class="form-group">
                 <label class="form-label">API 地址</label>
-                <input type="text" class="form-input" value="${configData.apis.qqInfo.url}" readonly>
+                <input type="text" class="form-input" value="${escapeHtml(qqInfo.url)}" readonly>
             </div>
             <div class="form-group">
                 <label class="form-label">状态</label>
-                <div style="padding: 12px; background: ${configData.apis.qqInfo.enabled ? '#dcfce7' : '#fee2e2'}; border-radius: 8px; color: ${configData.apis.qqInfo.enabled ? '#166534' : '#991b1b'};">
-                    ${configData.apis.qqInfo.enabled ? '[已启用]' : '[已禁用]'}
+                <div style="padding: 12px; background: ${qqInfo.enabled ? '#dcfce7' : '#fee2e2'}; border-radius: 8px; color: ${qqInfo.enabled ? '#166534' : '#991b1b'};">
+                    ${qqInfo.enabled ? '[已启用]' : '[已禁用]'}
                 </div>
             </div>
         </div>
@@ -705,7 +817,13 @@ function renderWeatherApi() {
     document.getElementById('weather-enabled').checked = weather.enabled !== false;
 }
 
+// 保存失败时从服务器重新拉取配置，回滚本地变异，保持 UI 与服务器一致
+async function resyncConfig() {
+    try { await loadConfig(); } catch (e) { /* 忽略 */ }
+}
+
 async function toggleApi(index) {
+    if (!configData?.apis?.anime?.[index]) return;
     configData.apis.anime[index].enabled = !configData.apis.anime[index].enabled;
 
     try {
@@ -716,9 +834,13 @@ async function toggleApi(index) {
         if (result.success) {
             showToast('API 状态已更新');
             await loadConfig();
+        } else {
+            showToast(result.message || '操作失败', 'error');
+            await resyncConfig();
         }
     } catch (err) {
         showToast('操作失败', 'error');
+        await resyncConfig();
     }
 }
 
@@ -734,6 +856,7 @@ function closeApiModal() {
 
 document.getElementById('api-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (!configData) return;
     const formData = new FormData(e.target);
     const newApi = {
         name: formData.get('name'),
@@ -753,14 +876,19 @@ document.getElementById('api-form').addEventListener('submit', async (e) => {
             showToast('API 已添加');
             closeApiModal();
             await loadConfig();
+        } else {
+            showToast(result.message || '添加失败', 'error');
+            await resyncConfig();
         }
     } catch (err) {
         showToast('添加失败', 'error');
+        await resyncConfig();
     }
 });
 
 async function deleteApi(index) {
     if (!confirm('确定删除这个 API？')) return;
+    if (!configData?.apis?.anime) return;
 
     configData.apis.anime.splice(index, 1);
 
@@ -772,9 +900,13 @@ async function deleteApi(index) {
         if (result.success) {
             showToast('API 已删除');
             await loadConfig();
+        } else {
+            showToast(result.message || '删除失败', 'error');
+            await resyncConfig();
         }
     } catch (err) {
         showToast('删除失败', 'error');
+        await resyncConfig();
     }
 }
 
@@ -787,8 +919,8 @@ function renderHitokotoApis() {
     
     tbody.innerHTML = configData.apis.hitokoto.map((api, index) => `
         <tr>
-            <td>${api.name}</td>
-            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${api.url}</td>
+            <td>${escapeHtml(api.name)}</td>
+            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(api.url)}</td>
             <td>${api.priority}</td>
             <td>
                 <span style="padding: 4px 12px; border-radius: 100px; font-size: 0.8rem; ${api.enabled ? 'background: #dcfce7; color: #166534;' : 'background: #fee2e2; color: #991b1b;'}">
@@ -817,6 +949,7 @@ function closeHitokotoApiModal() {
 if (document.getElementById('hitokoto-api-form')) {
     document.getElementById('hitokoto-api-form').addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (!configData) return;
         const formData = new FormData(e.target);
         const newApi = {
             name: formData.get('name'),
@@ -839,14 +972,19 @@ if (document.getElementById('hitokoto-api-form')) {
                 showToast('API 已添加');
                 closeHitokotoApiModal();
                 await loadConfig();
+            } else {
+                showToast(result.message || '添加失败', 'error');
+                await resyncConfig();
             }
         } catch (err) {
             showToast('添加失败', 'error');
+            await resyncConfig();
         }
     });
 }
 
 async function toggleHitokotoApi(index) {
+    if (!configData?.apis?.hitokoto?.[index]) return;
     configData.apis.hitokoto[index].enabled = !configData.apis.hitokoto[index].enabled;
 
     try {
@@ -857,14 +995,19 @@ async function toggleHitokotoApi(index) {
         if (result.success) {
             showToast('API 状态已更新');
             await loadConfig();
+        } else {
+            showToast(result.message || '操作失败', 'error');
+            await resyncConfig();
         }
     } catch (err) {
         showToast('操作失败', 'error');
+        await resyncConfig();
     }
 }
 
 async function deleteHitokotoApi(index) {
     if (!confirm('确定删除这个 API？')) return;
+    if (!configData?.apis?.hitokoto) return;
 
     configData.apis.hitokoto.splice(index, 1);
 
@@ -876,9 +1019,13 @@ async function deleteHitokotoApi(index) {
         if (result.success) {
             showToast('API 已删除');
             await loadConfig();
+        } else {
+            showToast(result.message || '删除失败', 'error');
+            await resyncConfig();
         }
     } catch (err) {
         showToast('删除失败', 'error');
+        await resyncConfig();
     }
 }
 
@@ -887,16 +1034,17 @@ function renderTags() {
     if (!configData) return;
 
     const list = document.getElementById('tag-list');
-    list.innerHTML = configData.tags.map((tag, index) => `
+    list.innerHTML = (configData.tags || []).map((tag, index) => `
         <div class="tag-item">
-            <span>${tag.icon}</span>
-            <span>${tag.name}</span>
+            <span>${escapeHtml(tag.icon)}</span>
+            <span>${escapeHtml(tag.name)}</span>
             <span class="remove" onclick="removeTag(${index})">x</span>
         </div>
     `).join('');
 }
 
 async function addTag() {
+    if (!configData) return;
     const icon = document.getElementById('tag-icon').value.trim();
     const name = document.getElementById('tag-name').value.trim();
 
@@ -905,6 +1053,7 @@ async function addTag() {
         return;
     }
 
+    if (!Array.isArray(configData.tags)) configData.tags = [];
     configData.tags.push({ icon, name });
 
     try {
@@ -917,14 +1066,19 @@ async function addTag() {
             document.getElementById('tag-icon').value = '';
             document.getElementById('tag-name').value = '';
             await loadConfig();
+        } else {
+            showToast(result.message || '添加失败', 'error');
+            await resyncConfig();
         }
     } catch (err) {
         showToast('添加失败', 'error');
+        await resyncConfig();
     }
 }
 
 async function removeTag(index) {
     if (!confirm('确定删除这个标签？')) return;
+    if (!configData?.tags) return;
 
     configData.tags.splice(index, 1);
 
@@ -936,29 +1090,37 @@ async function removeTag(index) {
         if (result.success) {
             showToast('标签已删除');
             await loadConfig();
+        } else {
+            showToast(result.message || '删除失败', 'error');
+            await resyncConfig();
         }
     } catch (err) {
         showToast('删除失败', 'error');
+        await resyncConfig();
     }
 }
 
 // ========== 外链管理 ==========
 function renderLinks() {
     if (!configData) return;
-    
+
     const grid = document.getElementById('link-grid');
-    grid.innerHTML = configData.links.map((link, index) => `
+    grid.innerHTML = (configData.links || []).map((link, index) => {
+        const color = sanitizeColor(link.color);
+        const icon = sanitizeUrl(link.icon);
+        return `
         <div class="link-card">
-            <div class="link-icon" style="background: ${link.color}15;">
-                ${link.icon ? `<img src="${link.icon}" alt="">` : '<span style="color: ${link.color};">●</span>'}
+            <div class="link-icon" style="background: ${color}15;">
+                ${icon ? `<img src="${escapeHtml(icon)}" alt="">` : `<span style="color: ${color};">●</span>`}
             </div>
-            <div class="link-name" style="font-weight: 600; font-size: 0.9rem; color: var(--text-main);">${link.name}</div>
+            <div class="link-name" style="font-weight: 600; font-size: 0.9rem; color: var(--text-main);">${escapeHtml(link.name)}</div>
             <div class="link-actions" style="display: flex; gap: 8px; margin-top: 4px;">
                 <button class="link-btn edit" onclick="editLink(${index})">E</button>
                 <button class="link-btn delete" onclick="deleteLink(${index})">D</button>
             </div>
         </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
 function openLinkModal(index = null) {
@@ -990,7 +1152,8 @@ function editLink(index) {
 
 async function deleteLink(index) {
     if (!confirm('确定删除这个链接？')) return;
-    
+    if (!configData?.links) return;
+
     configData.links.splice(index, 1);
     await saveLinks();
 }
@@ -1004,39 +1167,49 @@ async function saveLinks() {
         if (result.success) {
             showToast('链接已保存');
             await loadConfig();
+        } else {
+            showToast(result.message || '保存失败', 'error');
+            await resyncConfig();
         }
     } catch (err) {
         showToast('保存失败', 'error');
+        await resyncConfig();
     }
 }
 
 // ========== 日程管理 ==========
+const WEEKDAYS_CN = ['一', '二', '三', '四', '五', '六', '日'];
+function weekdayText(day) {
+    return WEEKDAYS_CN[day - 1] || String(day ?? '?');
+}
+
 function renderSchedule() {
     if (!configData) return;
-    
+    const schedule = configData.schedule || { courses: [], events: [] };
+
     // 渲染课程表
     const courseBody = document.getElementById('course-table-body');
-    courseBody.innerHTML = configData.schedule.courses.map(course => `
+    courseBody.innerHTML = (schedule.courses || []).map(course => `
         <tr>
-            <td><strong>${course.name}</strong></td>
-            <td>周${['一', '二', '三', '四', '五', '六', '日'][course.day - 1]}</td>
-            <td>${course.startTime} - ${course.endTime}</td>
-            <td>${course.location || '-'}</td>
+            <td><strong>${escapeHtml(course.name)}</strong></td>
+            <td>周${weekdayText(course.day)}</td>
+            <td>${escapeHtml(course.startTime)} - ${escapeHtml(course.endTime)}</td>
+            <td>${escapeHtml(course.location) || '-'}</td>
             <td>
                 <button class="btn btn-sm" onclick="editCourse(${course.id})" style="background: #e0e7ff; color: var(--primary-blue); margin-right: 8px;">编辑</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteCourse(${course.id})">删除</button>
             </td>
         </tr>
     `).join('');
-    
+
     // 渲染日程安排
     const eventBody = document.getElementById('event-table-body');
     const typeMap = { hobby: '兴趣爱好', project: '项目开发', study: '学习', other: '其他' };
-    eventBody.innerHTML = configData.schedule.events.map(event => `
+    eventBody.innerHTML = (schedule.events || []).map(event => `
         <tr>
-            <td><strong>${event.name}</strong></td>
-            <td>周${['一', '二', '三', '四', '五', '六', '日'][event.day - 1]}</td>
-            <td>${event.startTime} - ${event.endTime}</td>
+            <td><strong>${escapeHtml(event.name)}</strong></td>
+            <td>周${weekdayText(event.day)}</td>
+            <td>${escapeHtml(event.startTime)} - ${escapeHtml(event.endTime)}</td>
             <td>${typeMap[event.type] || '其他'}</td>
             <td>
                 <button class="btn btn-sm" onclick="editEvent(${event.id})" style="background: #e0e7ff; color: var(--primary-blue); margin-right: 8px;">编辑</button>
@@ -1051,7 +1224,7 @@ function openCourseModal(id = null) {
     const form = document.getElementById('course-form');
     
     if (id !== null) {
-        const course = configData.schedule.courses.find(c => String(c.id) === String(id));
+        const course = (configData.schedule?.courses || []).find(c => String(c.id) === String(id));
         if (!course) {
             console.error('找不到课程:', id);
             showToast('找不到该课程', 'error');
@@ -1109,7 +1282,7 @@ function openEventModal(id = null) {
     const form = document.getElementById('event-form');
     
     if (id !== null) {
-        const event = configData.schedule.events.find(e => String(e.id) === String(id));
+        const event = (configData.schedule?.events || []).find(e => String(e.id) === String(id));
         if (!event) {
             console.error('找不到日程:', id);
             showToast('找不到该日程', 'error');
@@ -1178,8 +1351,8 @@ function renderActivities() {
 
     tbody.innerHTML = activities.map(activity => `
         <tr>
-            <td>${activity.text}</td>
-            <td>${activity.time}</td>
+            <td>${escapeHtml(activity.text)}</td>
+            <td>${escapeHtml(activity.time)}</td>
             <td>
                 <button class="btn btn-sm" onclick="editActivity(${activity.id})" style="background: #e0e7ff; color: var(--primary-blue); margin-right: 8px;">编辑</button>
                 <button class="btn btn-sm btn-danger" onclick="deleteActivity(${activity.id})">删除</button>
@@ -1193,7 +1366,7 @@ function openActivityModal(id = null) {
     const form = document.getElementById('activity-form');
 
     if (id !== null) {
-        const activity = configData.activities.find(a => String(a.id) === String(id));
+        const activity = (configData.activities || []).find(a => String(a.id) === String(id));
         if (activity) {
             form.elements.id.value = activity.id;
             form.elements.text.value = activity.text;
@@ -1243,11 +1416,14 @@ async function deleteActivity(id) {
 }
 
 // ========== 工具函数 ==========
+let toastTimer = null;
 function showToast(message, type = 'success') {
     const toast = document.getElementById('toast');
     toast.textContent = message;
     toast.className = `toast ${type} show`;
-    setTimeout(() => {
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
         toast.classList.remove('show');
+        toastTimer = null;
     }, 3000);
 }

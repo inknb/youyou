@@ -83,6 +83,8 @@ async function migrate() {
     const prefix = process.env.DB_PREFIX || '';
 
     try {
+        await connection.beginTransaction();
+
         // 迁移网站配置
         console.log('迁移网站配置...');
         if (config.site) {
@@ -91,6 +93,7 @@ async function migrate() {
                 ['subtitle', config.site.subtitle, 'string', '网站副标题'],
                 ['nickname', config.site.nickname, 'string', '昵称'],
                 ['qq', config.site.qq, 'string', 'QQ号'],
+                ['customAvatar', config.site.customAvatar, 'string', '自定义头像URL'],
                 ['bio', config.site.bio, 'string', '个人简介'],
                 ['signature', config.site.signature, 'string', '个性签名'],
                 ['start_date', config.site.startDate, 'string', '网站开始日期'],
@@ -120,9 +123,10 @@ async function migrate() {
             console.log('管理员账号迁移完成');
         }
 
-        // 迁移 API 配置
+        // 迁移 API 配置（先清空对应类型，保证幂等）
         console.log('迁移 API 配置...');
         if (config.apis) {
+            await connection.query(`DELETE FROM \`${prefix}api_config\` WHERE api_type IN ('anime','hitokoto','qqInfo','weather')`);
             // 动漫图片 API
             if (config.apis.anime && Array.isArray(config.apis.anime)) {
                 for (const api of config.apis.anime) {
@@ -173,92 +177,100 @@ async function migrate() {
             console.log('API 配置迁移完成');
         }
 
-        // 迁移标签
+        // 迁移标签（先清空，保证幂等）
         console.log('迁移标签...');
         if (config.tags && Array.isArray(config.tags)) {
+            await connection.query(`DELETE FROM \`${prefix}tags\``);
             for (let i = 0; i < config.tags.length; i++) {
                 const tag = config.tags[i];
                 await connection.query(
                     `INSERT INTO \`${prefix}tags\` (icon, name, sort_order)
                      VALUES (?, ?, ?)`,
-                    [tag.icon, tag.name, i + 1]
+                    [tag.icon || '', tag.name || '', i + 1]
                 );
             }
             console.log(`标签迁移完成 (${config.tags.length} 个)`);
         }
 
-        // 迁移外链
+        // 迁移外链（先清空，保证幂等）
         console.log('迁移外链...');
         if (config.links && Array.isArray(config.links)) {
+            await connection.query(`DELETE FROM \`${prefix}links\``);
             for (let i = 0; i < config.links.length; i++) {
                 const link = config.links[i];
                 await connection.query(
                     `INSERT INTO \`${prefix}links\` (name, url, icon, color, sort_order)
                      VALUES (?, ?, ?, ?, ?)`,
-                    [link.name, link.url, link.icon, link.color || '#3b82f6', i + 1]
+                    [link.name || '', link.url || '', link.icon || '', link.color || '#3b82f6', i + 1]
                 );
             }
             console.log(`外链迁移完成 (${config.links.length} 个)`);
         }
 
-        // 迁移课程
+        // 迁移课程（先清空，保证幂等）
         console.log('迁移课程...');
         if (config.schedule?.courses && Array.isArray(config.schedule.courses)) {
+            await connection.query(`DELETE FROM \`${prefix}courses\``);
             for (const course of config.schedule.courses) {
                 await connection.query(
                     `INSERT INTO \`${prefix}courses\` (name, day, start_time, end_time, location, color)
                      VALUES (?, ?, ?, ?, ?, ?)`,
-                    [course.name, course.day, course.startTime, course.endTime, course.location, course.color || '#3b82f6']
+                    [course.name || '', course.day ?? 1, course.startTime || '00:00', course.endTime || '00:00', course.location || null, course.color || '#3b82f6']
                 );
             }
             console.log(`课程迁移完成 (${config.schedule.courses.length} 个)`);
         }
 
-        // 迁移日程
+        // 迁移日程（先清空，保证幂等）
         console.log('迁移日程...');
         if (config.schedule?.events && Array.isArray(config.schedule.events)) {
+            await connection.query(`DELETE FROM \`${prefix}events\``);
             for (const event of config.schedule.events) {
                 await connection.query(
                     `INSERT INTO \`${prefix}events\` (name, day, start_time, end_time, type, color)
                      VALUES (?, ?, ?, ?, ?, ?)`,
-                    [event.name, event.day, event.startTime, event.endTime, event.type || 'other', event.color || '#22c55e']
+                    [event.name || '', event.day ?? 1, event.startTime || '00:00', event.endTime || '00:00', event.type || 'other', event.color || '#22c55e']
                 );
             }
             console.log(`日程迁移完成 (${config.schedule.events.length} 个)`);
         }
 
-        // 迁移动态
+        // 迁移动态（先清空，保证幂等）
         console.log('迁移动态...');
         if (config.activities && Array.isArray(config.activities)) {
+            await connection.query(`DELETE FROM \`${prefix}activities\``);
             for (const activity of config.activities) {
                 await connection.query(
                     `INSERT INTO \`${prefix}activities\` (content, time_desc)
                      VALUES (?, ?)`,
-                    [activity.text, activity.time]
+                    [activity.text || '', activity.time || '']
                 );
             }
             console.log(`动态迁移完成 (${config.activities.length} 个)`);
         }
 
-        // 迁移挂件配置
+        // 迁移挂件配置（config 列不重复存 enabled，由 enabled 列单独承载）
         console.log('迁移挂件配置...');
         if (config.widgets?.sakana) {
+            const { enabled, ...sakanaConfig } = config.widgets.sakana;
             await connection.query(
                 `INSERT INTO \`${prefix}widgets\` (widget_type, enabled, config)
                  VALUES ('sakana', ?, ?)
                  ON DUPLICATE KEY UPDATE enabled = VALUES(enabled), config = VALUES(config)`,
-                [config.widgets.sakana.enabled ? 1 : 0, JSON.stringify(config.widgets.sakana)]
+                [enabled ? 1 : 0, JSON.stringify(sakanaConfig)]
             );
             console.log('挂件配置迁移完成');
         }
+
+        await connection.commit();
 
         console.log('\n========== 迁移完成 ==========');
         console.log('所有数据已成功迁移到 MySQL 数据库');
         console.log('建议: 备份原 config.json 文件后可将其删除');
 
     } catch (e) {
-        console.error('\n迁移失败:', e.message);
-        console.error(e);
+        try { await connection.rollback(); } catch (err) {}
+        console.error('\n迁移失败，已回滚全部变更:', e.message);
         process.exit(1);
     } finally {
         await connection.end();

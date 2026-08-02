@@ -264,7 +264,9 @@ const MySQLStore = {
         for (const row of rows) {
             let value = row.config_value;
             if (row.config_type === 'json') {
-                try { value = JSON.parse(value); } catch (e) {}
+                try { value = JSON.parse(value); } catch (e) {
+                    console.warn(`[MySQL] site_config.${row.config_key} JSON 解析失败:`, e.message);
+                }
             } else if (row.config_type === 'number') {
                 value = parseFloat(value);
             } else if (row.config_type === 'boolean') {
@@ -277,9 +279,12 @@ const MySQLStore = {
 
     async updateSiteConfig(data) {
         for (const [key, value] of Object.entries(data)) {
+            if (value === undefined) continue;
             let type = 'string';
             let val = value;
-            if (typeof value === 'object') {
+            if (value === null) {
+                val = '';
+            } else if (typeof value === 'object') {
                 type = 'json';
                 val = JSON.stringify(value);
             } else if (typeof value === 'number') {
@@ -303,16 +308,32 @@ const MySQLStore = {
     // ========== 管理员 ==========
 
     async getAdmin() {
-        return await db.queryOne('SELECT * FROM __PREFIX__admin LIMIT 1');
+        const row = await db.queryOne('SELECT * FROM __PREFIX__admin LIMIT 1');
+        if (!row) return null;
+        return {
+            id: row.id,
+            username: row.username,
+            password: row.password,
+            email: row.email,
+            token: row.token,
+            tokenExpiry: row.token_expiry != null ? Number(row.token_expiry) : null,
+            lastLogin: row.last_login
+        };
     },
 
     async updateAdmin(data) {
         const admin = await this.getAdmin();
+        const normalizeLastLogin = (v) => {
+            if (v == null) return null;
+            const d = new Date(v);
+            return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 19).replace('T', ' ');
+        };
         if (!admin) {
             await db.query(
                 `INSERT INTO __PREFIX__admin (username, password, email, token, token_expiry, last_login)
                  VALUES (?, ?, ?, ?, ?, ?)`,
-                [data.username || '', data.password || '', data.email || null, data.token || null, data.tokenExpiry || null, data.lastLogin || null]
+                [data.username || '', data.password || '', data.email || null, data.token || null,
+                 data.tokenExpiry != null ? Number(data.tokenExpiry) : null, normalizeLastLogin(data.lastLogin)]
             );
         } else {
             const updates = [];
@@ -321,8 +342,11 @@ const MySQLStore = {
             if (data.password !== undefined) { updates.push('password = ?'); values.push(data.password); }
             if (data.email !== undefined) { updates.push('email = ?'); values.push(data.email); }
             if (data.token !== undefined) { updates.push('token = ?'); values.push(data.token); }
-            if (data.tokenExpiry !== undefined) { updates.push('token_expiry = ?'); values.push(data.tokenExpiry); }
-            if (data.lastLogin !== undefined) { updates.push('last_login = ?'); values.push(data.lastLogin); }
+            if (data.tokenExpiry !== undefined) { updates.push('token_expiry = ?'); values.push(data.tokenExpiry != null ? Number(data.tokenExpiry) : null); }
+            if (data.lastLogin !== undefined) {
+                updates.push('last_login = ?');
+                values.push(normalizeLastLogin(data.lastLogin));
+            }
 
             if (updates.length > 0) {
                 values.push(admin.id);
@@ -355,7 +379,9 @@ const MySQLStore = {
             } else if (row.api_type === 'weather') {
                 let extraConfig = {};
                 if (row.extra_config) {
-                    try { extraConfig = JSON.parse(row.extra_config); } catch (e) {}
+                    try { extraConfig = typeof row.extra_config === 'string' ? JSON.parse(row.extra_config) : row.extra_config; } catch (e) {
+                        console.warn('[MySQL] weather extra_config 解析失败:', e.message);
+                    }
                 }
                 result.weather = { ...item, ...extraConfig };
             }
@@ -365,49 +391,54 @@ const MySQLStore = {
     },
 
     async updateApis(data) {
-        // 简化实现：直接更新特定 API
-        if (data.anime) {
-            // 先删除旧的
-            await db.query("DELETE FROM __PREFIX__api_config WHERE api_type = 'anime'");
-            // 插入新的
-            for (const api of data.anime) {
-                await db.query(
-                    `INSERT INTO __PREFIX__api_config (api_type, name, url, enabled, priority)
-                     VALUES ('anime', ?, ?, ?, ?)`,
-                    [api.name, api.url, api.enabled ? 1 : 0, api.priority || 1]
+        await db.withTransaction(async (tx) => {
+            if (data.anime) {
+                if (!Array.isArray(data.anime)) throw badRequest('anime 配置格式错误');
+                await tx("DELETE FROM __PREFIX__api_config WHERE api_type = 'anime'");
+                for (const api of data.anime) {
+                    if (!api || !api.name || !api.url) throw badRequest('anime API 缺少 name 或 url');
+                    await tx(
+                        `INSERT INTO __PREFIX__api_config (api_type, name, url, enabled, priority)
+                         VALUES ('anime', ?, ?, ?, ?)`,
+                        [String(api.name), String(api.url), api.enabled ? 1 : 0, api.priority || 1]
+                    );
+                }
+            }
+
+            if (data.hitokoto) {
+                if (!Array.isArray(data.hitokoto)) throw badRequest('hitokoto 配置格式错误');
+                await tx("DELETE FROM __PREFIX__api_config WHERE api_type = 'hitokoto'");
+                for (const api of data.hitokoto) {
+                    if (!api || !api.name || !api.url) throw badRequest('hitokoto API 缺少 name 或 url');
+                    await tx(
+                        `INSERT INTO __PREFIX__api_config (api_type, name, url, enabled, priority)
+                         VALUES ('hitokoto', ?, ?, ?, ?)`,
+                        [String(api.name), String(api.url), api.enabled ? 1 : 0, api.priority || 1]
+                    );
+                }
+            }
+
+            if (data.qqInfo) {
+                if (!data.qqInfo.url) throw badRequest('qqInfo API 缺少 url');
+                await tx(
+                    `INSERT INTO __PREFIX__api_config (api_type, name, url, enabled)
+                     VALUES ('qqInfo', 'qqInfo', ?, ?)
+                     ON DUPLICATE KEY UPDATE url = VALUES(url), enabled = VALUES(enabled)`,
+                    [String(data.qqInfo.url), data.qqInfo.enabled ? 1 : 0]
                 );
             }
-        }
 
-        if (data.hitokoto) {
-            await db.query("DELETE FROM __PREFIX__api_config WHERE api_type = 'hitokoto'");
-            for (const api of data.hitokoto) {
-                await db.query(
-                    `INSERT INTO __PREFIX__api_config (api_type, name, url, enabled, priority)
-                     VALUES ('hitokoto', ?, ?, ?, ?)`,
-                    [api.name, api.url, api.enabled ? 1 : 0, api.priority || 1]
+            if (data.weather) {
+                if (!data.weather.url) throw badRequest('weather API 缺少 url');
+                const extraConfig = JSON.stringify({ city: data.weather.city || '' });
+                await tx(
+                    `INSERT INTO __PREFIX__api_config (api_type, name, url, enabled, extra_config)
+                     VALUES ('weather', 'weather', ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE url = VALUES(url), enabled = VALUES(enabled), extra_config = VALUES(extra_config)`,
+                    [String(data.weather.url), data.weather.enabled ? 1 : 0, extraConfig]
                 );
             }
-        }
-
-        if (data.qqInfo) {
-            await db.query(
-                `INSERT INTO __PREFIX__api_config (api_type, name, url, enabled)
-                 VALUES ('qqInfo', 'qqInfo', ?, ?)
-                 ON DUPLICATE KEY UPDATE url = VALUES(url), enabled = VALUES(enabled)`,
-                [data.qqInfo.url, data.qqInfo.enabled ? 1 : 0]
-            );
-        }
-
-        if (data.weather) {
-            const extraConfig = JSON.stringify({ city: data.weather.city || '' });
-            await db.query(
-                `INSERT INTO __PREFIX__api_config (api_type, name, url, enabled, extra_config)
-                 VALUES ('weather', 'weather', ?, ?, ?)
-                 ON DUPLICATE KEY UPDATE url = VALUES(url), enabled = VALUES(enabled), extra_config = VALUES(extra_config)`,
-                [data.weather.url, data.weather.enabled ? 1 : 0, extraConfig]
-            );
-        }
+        });
 
         return true;
     },
@@ -419,13 +450,17 @@ const MySQLStore = {
     },
 
     async updateTags(tags) {
-        await db.query('DELETE FROM __PREFIX__tags');
-        for (let i = 0; i < tags.length; i++) {
-            await db.query(
-                'INSERT INTO __PREFIX__tags (icon, name, sort_order) VALUES (?, ?, ?)',
-                [tags[i].icon, tags[i].name, i + 1]
-            );
-        }
+        if (!Array.isArray(tags)) return false;
+        await db.withTransaction(async (tx) => {
+            await tx('DELETE FROM __PREFIX__tags');
+            for (let i = 0; i < tags.length; i++) {
+                if (!tags[i] || !tags[i].name) throw badRequest('标签缺少 name');
+                await tx(
+                    'INSERT INTO __PREFIX__tags (icon, name, sort_order) VALUES (?, ?, ?)',
+                    [tags[i].icon || '', String(tags[i].name), i + 1]
+                );
+            }
+        });
         return true;
     },
 
@@ -436,13 +471,17 @@ const MySQLStore = {
     },
 
     async updateLinks(links) {
-        await db.query('DELETE FROM __PREFIX__links');
-        for (let i = 0; i < links.length; i++) {
-            await db.query(
-                'INSERT INTO __PREFIX__links (name, url, icon, color, sort_order) VALUES (?, ?, ?, ?, ?)',
-                [links[i].name, links[i].url, links[i].icon, links[i].color || '#3b82f6', i + 1]
-            );
-        }
+        if (!Array.isArray(links)) return false;
+        await db.withTransaction(async (tx) => {
+            await tx('DELETE FROM __PREFIX__links');
+            for (let i = 0; i < links.length; i++) {
+                if (!links[i] || !links[i].name || !links[i].url) throw badRequest('外链缺少 name 或 url');
+                await tx(
+                    'INSERT INTO __PREFIX__links (name, url, icon, color, sort_order) VALUES (?, ?, ?, ?, ?)',
+                    [String(links[i].name), String(links[i].url), links[i].icon || '', links[i].color || '#3b82f6', i + 1]
+                );
+            }
+        });
         return true;
     },
 
@@ -453,20 +492,31 @@ const MySQLStore = {
     },
 
     async addCourse(course) {
+        if (!course.name || course.day == null || !course.startTime || !course.endTime) {
+            throw badRequest('课程缺少必填字段 (name/day/startTime/endTime)');
+        }
         const result = await db.query(
             `INSERT INTO __PREFIX__courses (name, day, start_time, end_time, location, color)
              VALUES (?, ?, ?, ?, ?, ?)`,
-            [course.name, course.day, course.startTime, course.endTime, course.location, course.color || '#3b82f6']
+            [String(course.name), course.day, course.startTime, course.endTime, course.location || null, course.color || '#3b82f6']
         );
         return { id: result.insertId, ...course };
     },
 
     async updateCourse(id, data) {
-        await db.query(
-            `UPDATE __PREFIX__courses SET name = ?, day = ?, start_time = ?, end_time = ?, location = ?, color = ?
-             WHERE id = ?`,
-            [data.name, data.day, data.startTime, data.endTime, data.location, data.color, id]
+        const fields = { name: 'name', day: 'day', startTime: 'start_time', endTime: 'end_time', location: 'location', color: 'color' };
+        const updates = [];
+        const values = [];
+        for (const [key, col] of Object.entries(fields)) {
+            if (data[key] !== undefined) { updates.push(`${col} = ?`); values.push(data[key]); }
+        }
+        if (updates.length === 0) return { id, ...data };
+        values.push(id);
+        const result = await db.query(
+            `UPDATE __PREFIX__courses SET ${updates.join(', ')} WHERE id = ?`,
+            values
         );
+        if (result.affectedRows === 0) return null;
         return { id, ...data };
     },
 
@@ -480,20 +530,31 @@ const MySQLStore = {
     },
 
     async addEvent(event) {
+        if (!event.name || event.day == null || !event.startTime || !event.endTime) {
+            throw badRequest('日程缺少必填字段 (name/day/startTime/endTime)');
+        }
         const result = await db.query(
             `INSERT INTO __PREFIX__events (name, day, start_time, end_time, type, color)
              VALUES (?, ?, ?, ?, ?, ?)`,
-            [event.name, event.day, event.startTime, event.endTime, event.type || 'other', event.color || '#22c55e']
+            [String(event.name), event.day, event.startTime, event.endTime, event.type || 'other', event.color || '#22c55e']
         );
         return { id: result.insertId, ...event };
     },
 
     async updateEvent(id, data) {
-        await db.query(
-            `UPDATE __PREFIX__events SET name = ?, day = ?, start_time = ?, end_time = ?, type = ?, color = ?
-             WHERE id = ?`,
-            [data.name, data.day, data.startTime, data.endTime, data.type, data.color, id]
+        const fields = { name: 'name', day: 'day', startTime: 'start_time', endTime: 'end_time', type: 'type', color: 'color' };
+        const updates = [];
+        const values = [];
+        for (const [key, col] of Object.entries(fields)) {
+            if (data[key] !== undefined) { updates.push(`${col} = ?`); values.push(data[key]); }
+        }
+        if (updates.length === 0) return { id, ...data };
+        values.push(id);
+        const result = await db.query(
+            `UPDATE __PREFIX__events SET ${updates.join(', ')} WHERE id = ?`,
+            values
         );
+        if (result.affectedRows === 0) return null;
         return { id, ...data };
     },
 
@@ -517,19 +578,29 @@ const MySQLStore = {
     },
 
     async addActivity(activity) {
+        if (!activity.text) {
+            throw badRequest('动态缺少必填字段 (text)');
+        }
         const result = await db.query(
             `INSERT INTO __PREFIX__activities (content, time_desc)
              VALUES (?, ?)`,
-            [activity.text, activity.time]
+            [String(activity.text), activity.time || '']
         );
         return { id: result.insertId, ...activity };
     },
 
     async updateActivity(id, data) {
-        await db.query(
-            `UPDATE __PREFIX__activities SET content = ?, time_desc = ? WHERE id = ?`,
-            [data.text, data.time, id]
+        const updates = [];
+        const values = [];
+        if (data.text !== undefined) { updates.push('content = ?'); values.push(String(data.text)); }
+        if (data.time !== undefined) { updates.push('time_desc = ?'); values.push(data.time); }
+        if (updates.length === 0) return { id, ...data };
+        values.push(id);
+        const result = await db.query(
+            `UPDATE __PREFIX__activities SET ${updates.join(', ')} WHERE id = ?`,
+            values
         );
+        if (result.affectedRows === 0) return null;
         return { id, ...data };
     },
 
@@ -546,9 +617,11 @@ const MySQLStore = {
         for (const row of rows) {
             let config = {};
             if (row.config) {
-                try { config = JSON.parse(row.config); } catch (e) {}
+                try { config = typeof row.config === 'string' ? JSON.parse(row.config) : row.config; } catch (e) {
+                    console.warn(`[MySQL] 挂件 ${row.widget_type} 配置解析失败:`, e.message);
+                }
             }
-            result[row.widget_type] = { enabled: !!row.enabled, ...config };
+            result[row.widget_type] = { ...config, enabled: !!row.enabled };
         }
         return result;
     },
@@ -577,6 +650,15 @@ const MySQLStore = {
  */
 function getStore() {
     return db.isMySQL() ? MySQLStore : JsonStore;
+}
+
+/**
+ * 抛出带 400 状态码的入参校验错误
+ */
+function badRequest(message) {
+    const err = new Error(message);
+    err.statusCode = 400;
+    return err;
 }
 
 module.exports = {

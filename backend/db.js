@@ -91,6 +91,17 @@ function isMySQL() {
 }
 
 /**
+ * 获取表前缀（校验合法字符，防止 SQL 标识符注入）
+ */
+function getPrefix() {
+    const prefix = process.env.DB_PREFIX || '';
+    if (!/^[A-Za-z0-9_]*$/.test(prefix)) {
+        throw new Error(`非法的数据库表前缀: ${prefix}`);
+    }
+    return prefix;
+}
+
+/**
  * 执行 SQL 查询
  */
 async function query(sql, params = []) {
@@ -98,7 +109,7 @@ async function query(sql, params = []) {
         throw new Error('数据库未初始化');
     }
 
-    const prefix = process.env.DB_PREFIX || '';
+    const prefix = getPrefix();
     // 替换表前缀占位符
     const finalSql = sql.replace(/__PREFIX__/g, prefix);
 
@@ -121,12 +132,43 @@ async function queryOne(sql, params = []) {
 }
 
 /**
+ * 在事务中执行一组查询，全部成功才提交，任一失败回滚
+ * fn 接收一个与 query 相同签名的 txQuery 函数
+ */
+async function withTransaction(fn) {
+    if (!pool) {
+        throw new Error('数据库未初始化');
+    }
+
+    const prefix = getPrefix();
+    const connection = await pool.getConnection();
+    const txQuery = (sql, params = []) => {
+        const finalSql = sql.replace(/__PREFIX__/g, prefix);
+        return connection.execute(finalSql, params).then(([rows]) => rows);
+    };
+
+    try {
+        await connection.beginTransaction();
+        const result = await fn(txQuery);
+        await connection.commit();
+        return result;
+    } catch (err) {
+        try { await connection.rollback(); } catch (e) {}
+        console.error('[数据库] 事务已回滚:', err.message);
+        throw err;
+    } finally {
+        connection.release();
+    }
+}
+
+/**
  * 关闭数据库连接
  */
 async function close() {
     if (pool) {
         await pool.end();
         pool = null;
+        dbMode = 'json';
         console.log('[数据库] MySQL 连接池已关闭');
     }
 }
@@ -138,5 +180,6 @@ module.exports = {
     isMySQL,
     query,
     queryOne,
+    withTransaction,
     close
 };

@@ -26,7 +26,19 @@ app.set('etag', false);
 const TOKEN_EXPIRY = 24 * 60 * 60 * 1000;
 
 // 中间件
-app.use(cors());
+// CORS：默认仅允许同源（不启用 cors 头）；如需跨域，用环境变量 CORS_ORIGIN 配置白名单
+const corsOrigins = (process.env.CORS_ORIGIN || '').split(',').map(s => s.trim()).filter(Boolean);
+if (corsOrigins.length > 0) {
+  app.use(cors({ origin: corsOrigins }));
+}
+
+// 安全响应头
+app.use((req, res, next) => {
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Frame-Options', 'SAMEORIGIN');
+  res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
 
 // API 响应不缓存，确保前端始终获取最新数据
 app.use('/api', (req, res, next) => {
@@ -40,20 +52,17 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // 请求日志（调试用）
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  next();
-});
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+  });
+}
 
 const LOCK_FILE = path.join(__dirname, 'data', 'install.lock');
 
 // 安装锁定检查中间件（保护 API 路由）
 function installLockMiddleware(req, res, next) {
-  // 安装向导 API 不受限制
-  if (req.path.startsWith('/api/install')) {
-    return next();
-  }
-
   // 检查是否已安装
   if (!fs.existsSync(LOCK_FILE)) {
     return res.status(503).json({
@@ -77,6 +86,40 @@ app.use('/api/install', installRouter);
 app.use('/api', installLockMiddleware);
 
 // 认证中间件
+const crypto = require('crypto');
+
+function tokenEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || !a || !b) return false;
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+}
+
+// 登录限频：同一 IP 10 分钟内最多 10 次失败
+const loginAttempts = new Map();
+const LOGIN_WINDOW = 10 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 10;
+
+function loginRateLimit(req, res, next) {
+  const ip = req.ip;
+  const now = Date.now();
+  const record = loginAttempts.get(ip) || { count: 0, resetAt: now + LOGIN_WINDOW };
+  if (now > record.resetAt) {
+    record.count = 0;
+    record.resetAt = now + LOGIN_WINDOW;
+  }
+  if (record.count >= LOGIN_MAX_ATTEMPTS) {
+    return res.status(429).json({ success: false, message: '尝试次数过多，请 10 分钟后再试' });
+  }
+  record.count++;
+  loginAttempts.set(ip, record);
+  next();
+}
+
+function clearLoginAttempts(ip) {
+  loginAttempts.delete(ip);
+}
+
 async function authMiddleware(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
 
@@ -90,12 +133,12 @@ async function authMiddleware(req, res, next) {
   }
 
   // 验证 Token
-  if (admin.token !== token) {
+  if (!tokenEqual(admin.token, token)) {
     return res.status(401).json({ success: false, message: 'Token 无效', needLogin: true });
   }
 
   // 检查 Token 是否过期
-  if (admin.tokenExpiry && Date.now() > admin.tokenExpiry) {
+  if (admin.tokenExpiry && Date.now() > Number(admin.tokenExpiry)) {
     return res.status(401).json({ success: false, message: '登录已过期', needLogin: true });
   }
 
@@ -107,7 +150,7 @@ async function authMiddleware(req, res, next) {
 // ========== 认证 API ==========
 
 // 登录
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', loginRateLimit, async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
@@ -124,6 +167,8 @@ app.post('/api/auth/login', async (req, res) => {
   if (username !== admin.username || passwordHash !== admin.password) {
     return res.status(401).json({ success: false, message: '用户名或密码错误' });
   }
+
+  clearLoginAttempts(req.ip);
 
   // 生成新 Token
   const token = store.generateToken();
@@ -163,7 +208,7 @@ app.get('/api/auth/verify', authMiddleware, async (req, res) => {
 
 // 登出
 app.post('/api/auth/logout', authMiddleware, async (req, res) => {
-  await store.updateAdmin({ token: '', tokenExpiry: null });
+  await store.updateAdmin({ token: null, tokenExpiry: null });
   console.log('[登出] 用户已登出');
   res.json({ success: true, message: '已登出' });
 });
@@ -193,7 +238,7 @@ app.post('/api/auth/change-password', authMiddleware, async (req, res) => {
 
   // 更新密码
   const newPasswordHash = store.md5(newPassword);
-  if (await store.updateAdmin({ password: newPasswordHash, token: '', tokenExpiry: null })) {
+  if (await store.updateAdmin({ password: newPasswordHash, token: null, tokenExpiry: null })) {
     console.log('[密码] 密码已修改');
     res.json({ success: true, message: '密码已修改，请重新登录', needRelogin: true });
   } else {
@@ -240,7 +285,7 @@ app.post('/api/auth/update-account', authMiddleware, async (req, res) => {
   let needRelogin = false;
   if (newPassword) {
     updateData.password = store.md5(newPassword);
-    updateData.token = '';
+    updateData.token = null;
     updateData.tokenExpiry = null;
     needRelogin = true;
     console.log('[账户] 密码已修改');
@@ -460,7 +505,9 @@ app.get('/api/weather', async (req, res) => {
     }
 
     const data = await response.json();
-    console.log('[天气 API] 响应成功', data);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[天气 API] 响应成功', data);
+    }
 
     if (!data.city || !data.weather) {
       throw new Error('API 返回格式错误');
@@ -480,7 +527,7 @@ app.get('/api/weather', async (req, res) => {
     console.error('[天气 API] 错误:', err);
     res.status(500).json({
       success: false,
-      message: '获取天气失败: ' + err.message
+      message: '获取天气失败，请稍后重试'
     });
   }
 });
@@ -506,6 +553,17 @@ app.get('/api/system/info', (req, res) => {
       isMySQL: db.isMySQL()
     }
   });
+});
+
+// 全局错误处理（兜底所有 async 路由异常，不泄露堆栈）
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  const status = err.statusCode || 500;
+  if (status >= 500) {
+    console.error('[服务器] 未处理异常:', err);
+  }
+  if (res.headersSent) return;
+  res.status(status).json({ success: false, message: status >= 500 ? '服务器内部错误' : err.message });
 });
 
 // 启动服务器

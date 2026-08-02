@@ -17,49 +17,29 @@ const ENV_TEMPLATE = path.join(DATA_DIR, '.env.template');
 const SCHEMA_FILE = path.join(DATA_DIR, 'schema.sql');
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 
-// MySQL 连接（延迟加载）
-let mysqlConnection = null;
-
-/**
- * 获取 MySQL 连接
- */
-function getMysqlConnection(config) {
-    // 如果已有连接且配置相同，复用
-    if (mysqlConnection) {
-        return mysqlConnection;
-    }
-
-    // 动态加载 mysql2
-    let mysql;
-    try {
-        mysql = require('mysql2/promise');
-    } catch (e) {
-        throw new Error('mysql2 模块未安装，请运行: npm install mysql2');
-    }
-
-    mysqlConnection = mysql.createPool({
-        host: config.host,
-        port: config.port || 3306,
-        user: config.user,
-        password: config.password,
-        database: config.database,
-        charset: 'utf8mb4',
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0
-    });
-
-    return mysqlConnection;
+// MySQL 库名/表前缀等标识符白名单校验
+function isValidIdentifier(name) {
+    return typeof name === 'string' && /^[A-Za-z0-9_$]+$/.test(name);
 }
 
-/**
- * 关闭 MySQL 连接
- */
-async function closeMysqlConnection() {
-    if (mysqlConnection) {
-        await mysqlConnection.end();
-        mysqlConnection = null;
+function isValidPrefix(prefix) {
+    return typeof prefix === 'string' && /^[A-Za-z0-9_]{0,16}$/.test(prefix);
+}
+
+// .env 值安全检查（防换行注入）
+function isSafeEnvValue(value) {
+    return typeof value === 'string' && !/[\r\n#]/.test(value);
+}
+
+// 已安装则禁止执行安装步骤
+function assertNotLocked(req, res, next) {
+    if (fs.existsSync(LOCK_FILE)) {
+        return res.status(403).json({
+            success: false,
+            message: '系统已安装，如需重新安装请删除 data/install.lock 后重启'
+        });
     }
+    next();
 }
 
 /**
@@ -81,22 +61,12 @@ function generateSecret(length = 32) {
  */
 router.get('/status', (req, res) => {
     const locked = fs.existsSync(LOCK_FILE);
-    let installInfo = null;
-
-    if (locked) {
-        try {
-            const lockContent = fs.readFileSync(LOCK_FILE, 'utf8');
-            installInfo = JSON.parse(lockContent);
-        } catch (e) {
-            // 忽略解析错误
-        }
-    }
 
     res.json({
         success: true,
         data: {
             locked,
-            installInfo
+            installInfo: null
         }
     });
 });
@@ -185,6 +155,13 @@ router.post('/test-db', async (req, res) => {
         });
     }
 
+    if (!isValidIdentifier(database)) {
+        return res.status(400).json({
+            success: false,
+            message: '数据库名只能包含字母、数字、下划线和 $'
+        });
+    }
+
     let mysql;
     try {
         mysql = require('mysql2/promise');
@@ -206,7 +183,7 @@ router.post('/test-db', async (req, res) => {
         });
 
         // 检查数据库是否存在
-        const [rows] = await connection.query(`SHOW DATABASES LIKE '${database}'`);
+        const [rows] = await connection.query('SHOW DATABASES LIKE ?', [database]);
 
         if (rows.length === 0) {
             // 数据库不存在，尝试创建
@@ -255,8 +232,6 @@ router.post('/test-db', async (req, res) => {
             errorMessage = '数据库用户名或密码错误';
         } else if (error.code === 'ER_BAD_DB_ERROR') {
             errorMessage = '数据库不存在且无创建权限';
-        } else if (error.message) {
-            errorMessage = error.message;
         }
 
         res.status(400).json({
@@ -269,10 +244,17 @@ router.post('/test-db', async (req, res) => {
 /**
  * 执行安装步骤 - 生成配置文件
  */
-router.post('/execute/config', async (req, res) => {
+router.post('/execute/config', assertNotLocked, async (req, res) => {
     const { mode, database, admin } = req.body;
 
     try {
+        if (mode !== 'json' && mode !== 'mysql') {
+            return res.status(400).json({
+                success: false,
+                message: '非法的存储模式'
+            });
+        }
+
         let envContent;
 
         if (mode === 'mysql' && database) {
@@ -281,6 +263,28 @@ router.post('/execute/config', async (req, res) => {
                 return res.status(400).json({
                     success: false,
                     message: '数据库配置信息不完整'
+                });
+            }
+
+            if (!isValidIdentifier(database.database)) {
+                return res.status(400).json({
+                    success: false,
+                    message: '数据库名只能包含字母、数字、下划线和 $'
+                });
+            }
+
+            if (!isValidPrefix(database.prefix || '')) {
+                return res.status(400).json({
+                    success: false,
+                    message: '表前缀只能包含字母、数字、下划线，最长 16 位'
+                });
+            }
+
+            const envValues = [database.host, database.user, database.password || '', database.database, database.prefix || ''];
+            if (envValues.some(v => !isSafeEnvValue(String(v)))) {
+                return res.status(400).json({
+                    success: false,
+                    message: '数据库配置包含非法字符（换行或 #）'
                 });
             }
 
@@ -355,7 +359,7 @@ INSTALL_TIME=${new Date().toISOString()}
         console.error('生成配置文件失败:', error);
         res.status(500).json({
             success: false,
-            message: `配置文件生成失败: ${error.message}`
+            message: '配置文件生成失败'
         });
     }
 });
@@ -363,13 +367,27 @@ INSTALL_TIME=${new Date().toISOString()}
 /**
  * 执行安装步骤 - 初始化数据库
  */
-router.post('/execute/database', async (req, res) => {
+router.post('/execute/database', assertNotLocked, async (req, res) => {
     const { database } = req.body;
 
     if (!database) {
         return res.status(400).json({
             success: false,
             message: '数据库配置信息缺失'
+        });
+    }
+
+    if (!isValidIdentifier(database.database || '')) {
+        return res.status(400).json({
+            success: false,
+            message: '数据库名只能包含字母、数字、下划线和 $'
+        });
+    }
+
+    if (!isValidPrefix(database.prefix || '')) {
+        return res.status(400).json({
+            success: false,
+            message: '表前缀只能包含字母、数字、下划线，最长 16 位'
         });
     }
 
@@ -431,7 +449,7 @@ router.post('/execute/database', async (req, res) => {
         console.error('数据库初始化失败:', error);
         res.status(500).json({
             success: false,
-            message: `数据库初始化失败: ${error.message}`
+            message: '数据库初始化失败，请检查数据库权限后重试'
         });
     }
 });
@@ -439,13 +457,20 @@ router.post('/execute/database', async (req, res) => {
 /**
  * 执行安装步骤 - 创建管理员账号
  */
-router.post('/execute/admin', async (req, res) => {
+router.post('/execute/admin', assertNotLocked, async (req, res) => {
     const { mode, database, admin } = req.body;
 
     if (!admin || !admin.username || !admin.password) {
         return res.status(400).json({
             success: false,
             message: '管理员信息不完整'
+        });
+    }
+
+    if (mode === 'mysql' && !isValidPrefix(database?.prefix || '')) {
+        return res.status(400).json({
+            success: false,
+            message: '表前缀只能包含字母、数字、下划线，最长 16 位'
         });
     }
 
@@ -547,7 +572,7 @@ router.post('/execute/admin', async (req, res) => {
         console.error('创建管理员账号失败:', error);
         res.status(500).json({
             success: false,
-            message: `创建管理员账号失败: ${error.message}`
+            message: '创建管理员账号失败'
         });
     }
 });
@@ -555,7 +580,7 @@ router.post('/execute/admin', async (req, res) => {
 /**
  * 执行安装步骤 - 锁定安装
  */
-router.post('/execute/lock', async (req, res) => {
+router.post('/execute/lock', assertNotLocked, async (req, res) => {
     try {
         // 创建锁定文件
         const lockData = {
@@ -584,7 +609,7 @@ router.post('/execute/lock', async (req, res) => {
         console.error('锁定安装失败:', error);
         res.status(500).json({
             success: false,
-            message: `锁定安装失败: ${error.message}`
+            message: '锁定安装失败'
         });
     }
 });
