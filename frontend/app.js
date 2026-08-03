@@ -25,16 +25,30 @@ function sanitizeUrl(url) {
 // 封面 URL 基于文章 id 生成确定性参数：
 // 同一篇文章在所有位置 URL 一致（显示同一张图），不同文章 URL 不同（随机图 API 取不同图）
 function articleCoverUrl(url, id) {
-    const clean = sanitizeUrl(url);
+    const clean = optimizeImageUrl(sanitizeUrl(url));
     if (!clean || clean === '#') return '';
     const sep = clean.includes('?') ? '&' : '?';
     return `${clean}${sep}t=article_${id}`;
 }
 
+// 第三方图源体积优化：yppp 原图可能 5MB+，w 参数可缩至 1/6
+function optimizeImageUrl(url) {
+    if (typeof url !== 'string') return url;
+    try {
+        const u = new URL(url);
+        if (u.hostname.endsWith('yppp.net')) {
+            u.searchParams.set('w', '1080');
+            return u.toString();
+        }
+    } catch (e) { /* 非法 URL 原样返回 */ }
+    return url;
+}
+
 // 带时间戳的图片 URL（正确处理已有 query 的情况）
 function withTimestamp(url) {
-    const sep = url.includes('?') ? '&' : '?';
-    return `${url}${sep}t=${Date.now()}`;
+    const clean = optimizeImageUrl(url);
+    const sep = clean.includes('?') ? '&' : '?';
+    return `${clean}${sep}t=${Date.now()}`;
 }
 
 // 初始化
@@ -372,7 +386,8 @@ function loadWallpaper() {
 function startWallpaper() {
     if (wallpaperLoaded) return;
     wallpaperLoaded = true;
-    loadWallpaper();
+    // 延迟加载壁纸，避免大图阻塞首屏渲染
+    setTimeout(loadWallpaper, 1200);
 }
 
 // 当前卡片展示的博客文章（点击跳转用）
@@ -537,10 +552,11 @@ function updateDateTime() {
 // 加载天气
 async function loadWeather() {
     const weatherBox = document.getElementById('weather-box');
+    const sunnyIcon = WEATHER_ICONS.sunny;
 
     // 检查是否启用天气 API
     if (!config?.apis?.weather?.enabled) {
-        weatherBox.innerHTML = '<span style="font-size: 1.2rem;">☀</span><span>未启用</span>';
+        weatherBox.innerHTML = `<span style="display:inline-flex;align-items:center;">${sunnyIcon}</span><span>未启用</span>`;
         return;
     }
 
@@ -553,55 +569,68 @@ async function loadWeather() {
             const icon = getWeatherIcon(data.weather, data.weatherCode);
 
             weatherBox.innerHTML = `
-                <span style="font-size: 1.2rem;">${icon}</span>
+                <span style="display:inline-flex;align-items:center;">${icon}</span>
                 <span>${data.weather} ${data.temp}°C</span>
             `;
         } else {
-            weatherBox.innerHTML = '<span style="font-size: 1.2rem;">☀</span><span>获取失败</span>';
+            weatherBox.innerHTML = `<span style="display:inline-flex;align-items:center;">${sunnyIcon}</span><span>获取失败</span>`;
         }
     } catch (err) {
         console.error('获取天气失败:', err);
-        weatherBox.innerHTML = '<span style="font-size: 1.2rem;">☀</span><span>加载失败</span>';
+        weatherBox.innerHTML = `<span style="display:inline-flex;align-items:center;">${sunnyIcon}</span><span>加载失败</span>`;
     }
 }
 
-// 根据天气描述和代码获取图标
-function getWeatherIcon(weather, code) {
-    if (!weather && !code) return '☀';
+// 天气 SVG 图标（Material 线条风格，避免手机 emoji 渲染差异）
+const WEATHER_ICONS = {
+    sunny: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5 5l1.4 1.4M17.6 17.6L19 19M19 5l-1.4 1.4M6.4 17.6L5 19"/></svg>',
+    partlyCloudy: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="3.2"/><path d="M9 2.8v1.4M3.9 5.4l1 1M12.1 5.4l-1 1M3.3 8.5h1.4"/><path d="M17.8 12.2a3.8 3.8 0 0 0-7.3-1.7A3.4 3.4 0 0 0 7.5 17h10.3a3 3 0 0 0 0-4.8z"/></svg>',
+    cloudy: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 12.2a3.8 3.8 0 0 0-7.3-1.7A3.4 3.4 0 0 0 7.5 17h10.3a3 3 0 0 0 0-4.8z"/></svg>',
+    rain: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 11.5a3.8 3.8 0 0 0-7.3-1.7A3.4 3.4 0 0 0 7.5 16.3h10.3a3 3 0 0 0 0-4.8z"/><path d="M9.5 18l-1 3M13.5 18l-1 3M17 18l-1 3"/></svg>',
+    heavyRain: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 11.5a3.8 3.8 0 0 0-7.3-1.7A3.4 3.4 0 0 0 7.5 16.3h10.3a3 3 0 0 0 0-4.8z"/><path d="M8.5 18l-1.2 3.5M12.5 18l-1.2 3.5M16.5 18l-1.2 3.5"/></svg>',
+    thunder: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 11.5a3.8 3.8 0 0 0-7.3-1.7A3.4 3.4 0 0 0 7.5 16.3h10.3a3 3 0 0 0 0-4.8z"/><path d="M12.8 16.3l-2 4.5h2.6l-1.4 3.5"/></svg>',
+    snow: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 11.5a3.8 3.8 0 0 0-7.3-1.7A3.4 3.4 0 0 0 7.5 16.3h10.3a3 3 0 0 0 0-4.8z"/><path d="M9.5 18.5v2.4M8.3 19.2l2.4 1.3M8.3 20.6l2.4-1.3M14.5 18.5v2.4M13.3 19.2l2.4 1.3M13.3 20.6l2.4-1.3"/></svg>',
+    fog: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 10.5a3.8 3.8 0 0 0-7.3-1.7A3.4 3.4 0 0 0 7.5 15.3h10.3a3 3 0 0 0 0-4.8z"/><path d="M5 17.5h14M7 20h10"/></svg>'
+};
 
-    // 优先根据天气代码判断（wttr.in 代码）
+// 根据天气描述和代码获取 SVG 图标
+function getWeatherIcon(weather, code) {
+    let key = 'sunny';
+
+    // 优先根据天气代码判断（wttr.in / uapis.cn 代码）
     if (code) {
         const codeNum = parseInt(code);
         // 晴朗 (113)
-        if (codeNum === 113) return '☀';
-        // 多云/部分多云 (119, 122, 143)
-        if (codeNum >= 119 && codeNum <= 143) return '☁';
-        // 小雨 (176, 263, 266, 293, 296, 299, 302, 305, 308, 353)
-        if (codeNum >= 176 && codeNum <= 353 && codeNum !== 227) return '🌧';
-        // 雪 (179, 182, 185, 227, 230, 233, 236, 281, 284, 317, 320, 323, 326, 329, 332, 335, 338, 350, 362, 365, 368, 371, 374, 377, 386, 389, 392, 395, 398, 371)
-        if (codeNum === 179 || codeNum === 182 || codeNum === 185 ||
+        if (codeNum === 113) key = 'sunny';
+        // 雷暴 (200, 386, 389, 392, 395)
+        else if (codeNum === 200 || codeNum === 386 || codeNum === 389 || codeNum === 392 || codeNum === 395) key = 'thunder';
+        // 雪 (179, 182, 185, 227-236, 281-284, 317-338, 350-398)
+        else if (codeNum === 179 || codeNum === 182 || codeNum === 185 ||
             (codeNum >= 227 && codeNum <= 236) ||
             (codeNum >= 281 && codeNum <= 284) ||
             (codeNum >= 317 && codeNum <= 338) ||
-            (codeNum >= 350 && codeNum <= 398)) return '❄';
+            (codeNum >= 350 && codeNum <= 398)) key = 'snow';
+        // 雨 (176-353 其余)
+        else if (codeNum >= 176 && codeNum <= 353) key = 'rain';
         // 雾 (143, 248, 260)
-        if (codeNum === 143 || codeNum === 248 || codeNum === 260) return '🌫';
-        // 雷暴 (200, 389, 392, 395, 386)
-        if (codeNum === 200 || codeNum === 389 || codeNum === 392 || codeNum === 395 || codeNum === 386) return '⛈';
+        else if (codeNum === 143 || codeNum === 248 || codeNum === 260) key = 'fog';
+        // 多云/阴 (119-122)
+        else if (codeNum >= 119 && codeNum <= 122) key = 'cloudy';
     }
 
-    // 根据描述判断
-    if (weather) {
+    // 无代码时根据描述判断
+    if (!code && weather) {
         const w = weather.toLowerCase();
-        if (w.includes('雨')) return '🌧';
-        if (w.includes('雪')) return '❄';
-        if (w.includes('云') || w.includes('阴') || w.includes('overcast') || w.includes('cloud')) return '☁';
-        if (w.includes('雾') || w.includes('霾') || w.includes('fog') || w.includes('mist')) return '🌫';
-        if (w.includes('雷') || w.includes('thunder')) return '⛈';
-        if (w.includes('晴') || w.includes('sunny') || w.includes('clear')) return '☀';
+        if (w.includes('雷') || w.includes('thunder')) key = 'thunder';
+        else if (w.includes('雪') || w.includes('snow')) key = 'snow';
+        else if (w.includes('雨') || w.includes('rain')) key = w.includes('大') || w.includes('暴') || w.includes('heavy') ? 'heavyRain' : 'rain';
+        else if (w.includes('雾') || w.includes('霾') || w.includes('fog') || w.includes('mist')) key = 'fog';
+        else if (w.includes('阴') || w.includes('overcast')) key = 'cloudy';
+        else if (w.includes('云') || w.includes('cloud')) key = w.includes('多') || w.includes('partly') ? 'partlyCloudy' : 'cloudy';
+        else if (w.includes('晴') || w.includes('sunny') || w.includes('clear')) key = 'sunny';
     }
 
-    return '☀';
+    return WEATHER_ICONS[key] || WEATHER_ICONS.sunny;
 }
 
 // 更新统计数据

@@ -481,6 +481,10 @@ function isPublicIPv4(ip) {
 const ipCityCache = new Map();
 const IP_CITY_TTL = 24 * 60 * 60 * 1000;
 
+// 天气结果缓存（10 分钟 TTL，减少外部 API 依赖延迟）
+const weatherResultCache = new Map();
+const WEATHER_RESULT_TTL = 10 * 60 * 1000;
+
 async function locateCityByIp(ip) {
   if (!isPublicIPv4(ip)) return null;
 
@@ -536,6 +540,13 @@ app.get('/api/weather', async (req, res) => {
     url = `${weatherUrl}?city=${encodeURIComponent(city)}`;
   }
 
+  // 命中缓存直接返回（10 分钟 TTL）
+  const cacheKey = url;
+  const cached = weatherResultCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < WEATHER_RESULT_TTL) {
+    return res.json({ success: true, data: { ...cached.data, source } });
+  }
+
   try {
     console.log(`[天气 API] 请求地址: ${url}`);
 
@@ -567,6 +578,7 @@ app.get('/api/weather', async (req, res) => {
       source
     };
 
+    weatherResultCache.set(cacheKey, { data: standardizedData, at: Date.now() });
     res.json({ success: true, data: standardizedData });
   } catch (err) {
     console.error('[天气 API] 错误:', err);
