@@ -78,9 +78,7 @@
 .blog-card {
     display: flex;
     flex-direction: column;
-    background: var(--glass-bg, var(--card-bg));
-    -webkit-backdrop-filter: var(--glass-blur, none);
-    backdrop-filter: var(--glass-blur, none);
+    background: var(--card-bg);
     border-radius: var(--radius-lg);
     overflow: hidden;
     box-shadow: var(--shadow-soft);

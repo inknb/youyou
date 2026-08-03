@@ -586,7 +586,14 @@ app.get('/', (req, res, next) => {
   next();
 });
 
-app.use(express.static(path.join(__dirname, '../frontend')));
+app.use(express.static(path.join(__dirname, '../frontend'), {
+  // 开发友好：每次重新验证，避免改资源后浏览器仍用旧缓存
+  etag: true,
+  maxAge: 0,
+  setHeaders: (res) => {
+    res.set('Cache-Control', 'no-cache');
+  }
+}));
 app.use('/admin', express.static(path.join(__dirname, '../admin')));
 
 // 获取当前数据存储模式 API

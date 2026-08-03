@@ -152,8 +152,42 @@ function showNotFound() {
     document.getElementById('blog-not-found').style.display = 'block';
 }
 
+// 加载二次元壁纸背景（与首页一致：复用动漫图 API，避开主图源，仅加载一次）
+let wallpaperLoaded = false;
+
+async function loadWallpaper() {
+    if (wallpaperLoaded) return;
+    wallpaperLoaded = true;
+
+    const wallpaperEl = document.getElementById('bg-wallpaper');
+    if (!wallpaperEl) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/api/config`, { cache: 'no-store' });
+        const data = await res.json();
+        if (!data.success) return;
+
+        const enabledApis = (data.data?.apis?.anime || []).filter(api => api.enabled).sort((a, b) => a.priority - b.priority);
+        if (enabledApis.length === 0) return;
+
+        // 壁纸优先用非主图源，避免与首页卡片图片重复；只有一个源时退回共用
+        const wallpaperApis = enabledApis.length > 1 ? enabledApis.slice(1) : enabledApis;
+        const api = wallpaperApis[Math.floor(Math.random() * wallpaperApis.length)];
+
+        const sep = api.url.includes('?') ? '&' : '?';
+        const img = new Image();
+        img.onload = () => {
+            wallpaperEl.style.backgroundImage = `url(${api.url}${sep}t=${Date.now()})`;
+            wallpaperEl.classList.add('ready');
+        };
+        img.onerror = () => { /* 加载失败保持淡色背景 */ };
+        img.src = `${api.url}${sep}t=${Date.now()}`;
+    } catch (e) { /* 忽略 */ }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     loadSiteTitle();
+    loadWallpaper();
 
     const params = new URLSearchParams(window.location.search);
     const id = params.get('id');
