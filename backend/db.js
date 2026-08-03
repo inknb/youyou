@@ -54,7 +54,10 @@ function initDatabase() {
             charset: process.env.DB_CHARSET || 'utf8mb4',
             waitForConnections: true,
             connectionLimit: 10,
-            queueLimit: 0
+            queueLimit: 0,
+            // 使 UPDATE 的 affectedRows 统计"匹配行数"而非"实际变更行数"，
+            // 避免内容未变化的更新被误判为"记录不存在"
+            flags: ['CLIENT_FOUND_ROWS']
         });
 
         dbMode = 'mysql';

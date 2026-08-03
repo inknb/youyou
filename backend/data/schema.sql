@@ -93,44 +93,7 @@ CREATE TABLE `links` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='外链表';
 
 -- ----------------------------
--- 6. 课程表
--- ----------------------------
-DROP TABLE IF EXISTS `courses`;
-CREATE TABLE `courses` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `name` varchar(100) NOT NULL COMMENT '课程名称',
-  `day` tinyint(4) NOT NULL COMMENT '星期几(1-7)',
-  `start_time` time NOT NULL COMMENT '开始时间',
-  `end_time` time NOT NULL COMMENT '结束时间',
-  `location` varchar(100) DEFAULT NULL COMMENT '地点',
-  `color` varchar(20) DEFAULT '#3b82f6' COMMENT '颜色标记',
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_day` (`day`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='课程表';
-
--- ----------------------------
--- 7. 个人日程表
--- ----------------------------
-DROP TABLE IF EXISTS `events`;
-CREATE TABLE `events` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `name` varchar(100) NOT NULL COMMENT '日程名称',
-  `day` tinyint(4) NOT NULL COMMENT '星期几(1-7)',
-  `start_time` time NOT NULL COMMENT '开始时间',
-  `end_time` time NOT NULL COMMENT '结束时间',
-  `type` varchar(50) DEFAULT 'other' COMMENT '类型: course, hobby, project, study, other',
-  `color` varchar(20) DEFAULT '#22c55e' COMMENT '颜色标记',
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_day` (`day`),
-  KEY `idx_type` (`type`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='个人日程表';
-
--- ----------------------------
--- 8. 动态表
+-- 6. 动态表
 -- ----------------------------
 DROP TABLE IF EXISTS `activities`;
 CREATE TABLE `activities` (
@@ -144,7 +107,26 @@ CREATE TABLE `activities` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='动态表';
 
 -- ----------------------------
--- 9. 挂件配置表
+-- 7. 博客文章表
+-- ----------------------------
+DROP TABLE IF EXISTS `articles`;
+CREATE TABLE `articles` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `title` varchar(200) NOT NULL COMMENT '文章标题',
+  `content` mediumtext NOT NULL COMMENT '文章内容(Markdown)',
+  `summary` varchar(500) DEFAULT '' COMMENT '文章摘要',
+  `cover` varchar(500) DEFAULT '' COMMENT '封面图URL',
+  `category` varchar(50) DEFAULT '未分类' COMMENT '分类',
+  `published` tinyint(1) DEFAULT 1 COMMENT '是否发布(1发布/0草稿)',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_created_at` (`created_at`),
+  KEY `idx_published_created` (`published`, `created_at`, `id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='博客文章表';
+
+-- ----------------------------
+-- 8. 挂件配置表
 -- ----------------------------
 DROP TABLE IF EXISTS `widgets`;
 CREATE TABLE `widgets` (
@@ -159,7 +141,7 @@ CREATE TABLE `widgets` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='挂件配置表';
 
 -- ----------------------------
--- 10. 安装锁定表
+-- 8. 安装锁定表
 -- ----------------------------
 DROP TABLE IF EXISTS `install_lock`;
 CREATE TABLE `install_lock` (

@@ -432,67 +432,6 @@
             transform: scale(1.1);
         }
 
-        /* 课程表 */
-        .schedule-grid {
-            display: grid;
-            grid-template-columns: 80px repeat(7, 1fr);
-            gap: 8px;
-            margin-top: 20px;
-        }
-
-        .schedule-header {
-            font-weight: 600;
-            color: var(--text-sub);
-            font-size: 0.85rem;
-            text-align: center;
-            padding: 12px 4px;
-        }
-
-        .schedule-time {
-            font-size: 0.8rem;
-            color: var(--text-sub);
-            text-align: right;
-            padding-right: 8px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-
-        .schedule-cell {
-            min-height: 60px;
-            background: #f8fafc;
-            border-radius: 8px;
-            padding: 8px;
-            font-size: 0.8rem;
-            position: relative;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .schedule-cell:hover {
-            background: #e2e8f0;
-        }
-
-        .schedule-item {
-            background: var(--primary-blue);
-            color: white;
-            border-radius: 6px;
-            padding: 6px;
-            font-size: 0.75rem;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-
-        .schedule-item .name {
-            font-weight: 600;
-        }
-
-        .schedule-item .location {
-            opacity: 0.8;
-        }
-
         /* 响应式 */
         @media (max-width: 1024px) {
             .sidebar {
@@ -964,15 +903,15 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" data-section="schedule">
-                            
-                            <span>日程管理</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link" data-section="activities">
                             
                             <span>动态管理</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-section="blog">
+                            
+                            <span>博客管理</span>
                         </a>
                     </li>
                     <li class="nav-item">
@@ -1187,58 +1126,6 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
                 </div>
             </section>
 
-            <!-- 日程管理 -->
-            <section id="schedule" class="section">
-                <div class="page-header">
-                    <h1 class="page-title">日程管理</h1>
-                    <p class="page-desc">管理课程表和个人日程</p>
-                </div>
-                
-                <!-- 课程列表 -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">课程表</h3>
-                        <button class="btn btn-success btn-sm" onclick="openCourseModal()">[+] 添加课程</button>
-                    </div>
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>课程名</th>
-                                <th>星期</th>
-                                <th>时间</th>
-                                <th>地点</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="course-table-body">
-                            <!-- 动态加载 -->
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- 日程安排 -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">个人日程</h3>
-                        <button class="btn btn-success btn-sm" onclick="openEventModal()">[+] 添加日程</button>
-                    </div>
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>名称</th>
-                                <th>星期</th>
-                                <th>时间</th>
-                                <th>类型</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="event-table-body">
-                            <!-- 动态加载 -->
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
             <!-- 动态管理 -->
             <section id="activities" class="section">
                 <div class="page-header">
@@ -1259,6 +1146,34 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
                             </tr>
                         </thead>
                     <tbody id="activity-table-body">
+                            <!-- 动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 博客管理 -->
+            <section id="blog" class="section">
+                <div class="page-header">
+                    <h1 class="page-title">博客管理</h1>
+                    <p class="page-desc">管理博客文章（支持 Markdown 与草稿）</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">文章列表</h3>
+                        <button class="btn btn-success btn-sm" onclick="openBlogModal()">[+] 写文章</button>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>标题</th>
+                                <th>分类</th>
+                                <th>日期</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="blog-table-body">
                             <!-- 动态加载 -->
                         </tbody>
                     </table>
@@ -1447,109 +1362,46 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
         </div>
     </div>
 
-    <!-- 课程弹窗 -->
-    <div class="modal" id="course-modal">
+    <!-- 博客弹窗 -->
+    <div class="modal" id="blog-modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title">添加/编辑课程</h3>
+                <h3 class="modal-title">写文章 / 编辑文章</h3>
             </div>
-            <form id="course-form">
-                <input type="hidden" name="id" id="course-id">
-                <div class="form-group">
-                    <label class="form-label">课程名称</label>
-                    <input type="text" class="form-input" name="name" placeholder="如：高等数学" required>
-                </div>
+            <form id="blog-form">
+                <input type="hidden" name="id" id="blog-id">
                 <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">星期</label>
-                        <select class="form-select" name="day">
-                            <option value="1">周一</option>
-                            <option value="2">周二</option>
-                            <option value="3">周三</option>
-                            <option value="4">周四</option>
-                            <option value="5">周五</option>
-                            <option value="6">周六</option>
-                            <option value="7">周日</option>
-                        </select>
+                    <div class="form-group" style="flex: 2;">
+                        <label class="form-label">标题</label>
+                        <input type="text" class="form-input" name="title" placeholder="文章标题" required maxlength="200">
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">地点</label>
-                        <input type="text" class="form-input" name="location" placeholder="如：教学楼A-101">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">开始时间</label>
-                        <input type="time" class="form-input" name="startTime" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">结束时间</label>
-                        <input type="time" class="form-input" name="endTime" required>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">分类</label>
+                        <input type="text" class="form-input" name="category" placeholder="未分类" maxlength="50">
                     </div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">颜色标记</label>
-                    <input type="color" class="form-input" name="color" value="#3b82f6">
+                    <label class="form-label">摘要（留空则前台显示“点击阅读全文”）</label>
+                    <input type="text" class="form-input" name="summary" placeholder="一句话介绍这篇文章" maxlength="500">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">封面图 URL（可选）</label>
+                    <input type="url" class="form-input" name="cover" placeholder="https://... 文章列表封面图">
+                    <small style="color: var(--text-sub); display: block; margin-top: 4px; font-size: 0.8rem;">留空则不显示封面；支持任意 https 图片链接</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">正文（Markdown 格式）</label>
+                    <textarea class="form-input" name="content" rows="14" placeholder="# 标题&#10;&#10;支持 **加粗**、`代码`、列表、链接等 Markdown 语法" required></textarea>
+                    <small style="color: var(--text-sub); display: block; margin-top: 4px; font-size: 0.8rem;">支持 Markdown：标题、粗体、代码块、表格、图片等</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-check">
+                        <input type="checkbox" name="published" checked>
+                        <span>发布到前台（取消勾选则为草稿，仅后台可见）</span>
+                    </label>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn" onclick="closeCourseModal()">取消</button>
-                    <button type="submit" class="btn btn-primary">保存</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- 日程弹窗 -->
-    <div class="modal" id="event-modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">添加/编辑日程</h3>
-            </div>
-            <form id="event-form">
-                <input type="hidden" name="id" id="event-id">
-                <div class="form-group">
-                    <label class="form-label">日程名称</label>
-                    <input type="text" class="form-input" name="name" placeholder="如：看番时间" required>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">星期</label>
-                        <select class="form-select" name="day">
-                            <option value="1">周一</option>
-                            <option value="2">周二</option>
-                            <option value="3">周三</option>
-                            <option value="4">周四</option>
-                            <option value="5">周五</option>
-                            <option value="6">周六</option>
-                            <option value="7">周日</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">类型</label>
-                        <select class="form-select" name="type">
-                            <option value="hobby">兴趣爱好</option>
-                            <option value="project">项目开发</option>
-                            <option value="study">学习</option>
-                            <option value="other">其他</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">开始时间</label>
-                        <input type="time" class="form-input" name="startTime" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">结束时间</label>
-                        <input type="time" class="form-input" name="endTime" required>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">颜色标记</label>
-                    <input type="color" class="form-input" name="color" value="#22c55e">
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn" onclick="closeEventModal()">取消</button>
+                    <button type="button" class="btn" onclick="closeBlogModal()">取消</button>
                     <button type="submit" class="btn btn-primary">保存</button>
                 </div>
             </form>

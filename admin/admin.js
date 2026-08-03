@@ -115,6 +115,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     document.getElementById('display-last-login').textContent = `上次登录: ${formatTime(data.data.lastLogin)}`;
                 }
                 await loadConfig();
+                loadBlogData();
                 initNavigation();
                 initForms();
             } else {
@@ -205,6 +206,7 @@ function initLoginForm() {
                     document.getElementById('display-last-login').textContent = `上次登录: ${formatTime(data.data.lastLogin)}`;
                 }
                 await loadConfig();
+                loadBlogData();
                 initNavigation();
                 initForms();
                 form.reset();
@@ -403,8 +405,119 @@ function renderAll() {
     renderHitokotoApis();
     renderTags();
     renderLinks();
-    renderSchedule();
     renderActivities();
+}
+
+// ========== 博客管理 ==========
+let blogArticles = [];
+
+async function loadBlogData() {
+    try {
+        const { data } = await authFetch(`${API_BASE}/api/blog?page=1&pageSize=50`, { cache: 'no-store' });
+        if (data.success) {
+            blogArticles = data.data.list || [];
+            renderBlog();
+        } else {
+            showToast(data.message || '加载博客失败', 'error');
+        }
+    } catch (err) {
+        // 错误已在 authFetch 处理
+    }
+}
+
+function renderBlog() {
+    const tbody = document.getElementById('blog-table-body');
+    if (!tbody) return;
+
+    if (blogArticles.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-sub);">暂无文章</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = blogArticles.map(article => `
+        <tr>
+            <td><strong>${escapeHtml(article.title)}</strong></td>
+            <td>${escapeHtml(article.category)}</td>
+            <td>${escapeHtml(article.createdAt)}</td>
+            <td>${article.published ? '<span style="color: #166534; font-weight: 600;">已发布</span>' : '<span style="color: #991b1b; font-weight: 600;">草稿</span>'}</td>
+            <td>
+                <button class="btn btn-sm" onclick="editBlog(${article.id})" style="background: #e0e7ff; color: var(--primary-blue); margin-right: 8px;">编辑</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteBlog(${article.id})">删除</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// 博客弹窗请求序列号（防止异步详情响应覆盖新打开的弹窗）
+let blogModalSeq = 0;
+
+function openBlogModal(id = null) {
+    const modal = document.getElementById('blog-modal');
+    const form = document.getElementById('blog-form');
+    const seq = ++blogModalSeq;
+
+    if (id !== null) {
+        const article = blogArticles.find(a => String(a.id) === String(id));
+        if (!article) {
+            showToast('找不到该文章', 'error');
+            return;
+        }
+        // 列表接口不含 content，需拉详情
+        authFetch(`${API_BASE}/api/blog/${id}`, { cache: 'no-store' }).then(({ data }) => {
+            // 期间用户已关闭/切换弹窗，丢弃过期响应
+            if (seq !== blogModalSeq || modal.classList.contains('show')) {
+                if (seq === blogModalSeq) modal.classList.add('show');
+                return;
+            }
+            if (!data.success) {
+                showToast(data.message || '加载文章失败', 'error');
+                return;
+            }
+            const full = data.data;
+            form.elements.id.value = full.id;
+            form.elements.title.value = full.title;
+            form.elements.category.value = full.category || '';
+            form.elements.summary.value = full.summary || '';
+            form.elements.cover.value = full.cover || '';
+            form.elements.content.value = full.content;
+            form.elements.published.checked = !!full.published;
+            modal.classList.add('show');
+        }).catch(() => {
+            showToast('加载文章失败', 'error');
+        });
+    } else {
+        form.reset();
+        form.elements.id.value = '';
+        form.elements.category.value = '未分类';
+        form.elements.published.checked = true;
+        modal.classList.add('show');
+    }
+}
+
+function closeBlogModal() {
+    document.getElementById('blog-modal').classList.remove('show');
+}
+
+function editBlog(id) {
+    openBlogModal(id);
+}
+
+async function deleteBlog(id) {
+    if (!confirm('确定删除这篇文章？此操作不可恢复')) return;
+
+    try {
+        const { data: result } = await authFetch(`${API_BASE}/api/blog/${id}`, {
+            method: 'DELETE'
+        });
+        if (result.success) {
+            showToast('文章已删除');
+            await loadBlogData();
+        } else {
+            showToast(result.message || '删除失败', 'error');
+        }
+    } catch (err) {
+        showToast('删除失败', 'error');
+    }
 }
 
 // ========== 导航切换 ==========
@@ -619,104 +732,6 @@ function initForms() {
         await saveLinks();
         closeLinkModal();
     });
-    
-    // 课程表单
-    document.getElementById('course-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        const course = Object.fromEntries(formData);
-        course.day = parseInt(course.day);
-        course.color = course.color || '#3b82f6';
-
-        if (!course.name || !course.startTime || !course.endTime) {
-            showToast('课程名称和起止时间必填', 'error');
-            return;
-        }
-        if (course.startTime >= course.endTime) {
-            showToast('结束时间必须晚于开始时间', 'error');
-            return;
-        }
-
-        // 删除空的 id 字段，避免覆盖后端生成的 ID
-        if (!course.id) delete course.id;
-
-        const id = document.getElementById('course-id').value;
-
-        try {
-            let result;
-            if (id) {
-                const { data } = await authFetch(`${API_BASE}/api/schedule/courses/${id}`, {
-                    method: 'PUT',
-                    body: JSON.stringify(course)
-                });
-                result = data;
-            } else {
-                const { data } = await authFetch(`${API_BASE}/api/schedule/courses`, {
-                    method: 'POST',
-                    body: JSON.stringify(course)
-                });
-                result = data;
-            }
-            if (result.success) {
-                showToast(id ? '课程已更新' : '课程已添加');
-                closeCourseModal();
-                await loadConfig();
-            } else {
-                showToast(result.message, 'error');
-            }
-        } catch (err) {
-            showToast('操作失败', 'error');
-        }
-    });
-
-    // 日程表单
-    document.getElementById('event-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        const event = Object.fromEntries(formData);
-        event.day = parseInt(event.day);
-        event.color = event.color || '#22c55e';
-
-        if (!event.name || !event.startTime || !event.endTime) {
-            showToast('日程名称和起止时间必填', 'error');
-            return;
-        }
-        if (event.startTime >= event.endTime) {
-            showToast('结束时间必须晚于开始时间', 'error');
-            return;
-        }
-
-        // 删除空的 id 字段，避免覆盖后端生成的 ID
-        if (!event.id) delete event.id;
-
-        const id = document.getElementById('event-id').value;
-
-        try {
-            let result;
-            if (id) {
-                const { data } = await authFetch(`${API_BASE}/api/schedule/events/${id}`, {
-                    method: 'PUT',
-                    body: JSON.stringify(event)
-                });
-                result = data;
-            } else {
-                const { data } = await authFetch(`${API_BASE}/api/schedule/events`, {
-                    method: 'POST',
-                    body: JSON.stringify(event)
-                });
-                result = data;
-            }
-            if (result.success) {
-                showToast(id ? '日程已更新' : '日程已添加');
-                closeEventModal();
-                await loadConfig();
-            } else {
-                showToast(result.message, 'error');
-            }
-        } catch (err) {
-            showToast('操作失败', 'error');
-        }
-    });
 
     // 动态表单
     document.getElementById('activity-form').addEventListener('submit', async (e) => {
@@ -753,6 +768,50 @@ function initForms() {
                 showToast(id ? '动态已更新' : '动态已添加');
                 closeActivityModal();
                 await loadConfig();
+            } else {
+                showToast(result.message, 'error');
+            }
+        } catch (err) {
+            showToast('操作失败', 'error');
+        }
+    });
+
+    // 博客表单
+    document.getElementById('blog-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const article = Object.fromEntries(formData);
+        article.published = formData.get('published') === 'on';
+
+        if (!article.title || !article.content) {
+            showToast('标题和正文必填', 'error');
+            return;
+        }
+
+        // 删除空的 id 字段，避免覆盖后端生成的 ID
+        if (!article.id) delete article.id;
+
+        const id = document.getElementById('blog-id').value;
+
+        try {
+            let result;
+            if (id) {
+                const { data } = await authFetch(`${API_BASE}/api/blog/${id}`, {
+                    method: 'PUT',
+                    body: JSON.stringify(article)
+                });
+                result = data;
+            } else {
+                const { data } = await authFetch(`${API_BASE}/api/blog`, {
+                    method: 'POST',
+                    body: JSON.stringify(article)
+                });
+                result = data;
+            }
+            if (result.success) {
+                showToast(id ? '文章已更新' : '文章已发布');
+                closeBlogModal();
+                await loadBlogData();
             } else {
                 showToast(result.message, 'error');
             }
@@ -1174,164 +1233,6 @@ async function saveLinks() {
     } catch (err) {
         showToast('保存失败', 'error');
         await resyncConfig();
-    }
-}
-
-// ========== 日程管理 ==========
-const WEEKDAYS_CN = ['一', '二', '三', '四', '五', '六', '日'];
-function weekdayText(day) {
-    return WEEKDAYS_CN[day - 1] || String(day ?? '?');
-}
-
-function renderSchedule() {
-    if (!configData) return;
-    const schedule = configData.schedule || { courses: [], events: [] };
-
-    // 渲染课程表
-    const courseBody = document.getElementById('course-table-body');
-    courseBody.innerHTML = (schedule.courses || []).map(course => `
-        <tr>
-            <td><strong>${escapeHtml(course.name)}</strong></td>
-            <td>周${weekdayText(course.day)}</td>
-            <td>${escapeHtml(course.startTime)} - ${escapeHtml(course.endTime)}</td>
-            <td>${escapeHtml(course.location) || '-'}</td>
-            <td>
-                <button class="btn btn-sm" onclick="editCourse(${course.id})" style="background: #e0e7ff; color: var(--primary-blue); margin-right: 8px;">编辑</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteCourse(${course.id})">删除</button>
-            </td>
-        </tr>
-    `).join('');
-
-    // 渲染日程安排
-    const eventBody = document.getElementById('event-table-body');
-    const typeMap = { hobby: '兴趣爱好', project: '项目开发', study: '学习', other: '其他' };
-    eventBody.innerHTML = (schedule.events || []).map(event => `
-        <tr>
-            <td><strong>${escapeHtml(event.name)}</strong></td>
-            <td>周${weekdayText(event.day)}</td>
-            <td>${escapeHtml(event.startTime)} - ${escapeHtml(event.endTime)}</td>
-            <td>${typeMap[event.type] || '其他'}</td>
-            <td>
-                <button class="btn btn-sm" onclick="editEvent(${event.id})" style="background: #e0e7ff; color: var(--primary-blue); margin-right: 8px;">编辑</button>
-                <button class="btn btn-sm btn-danger" onclick="deleteEvent(${event.id})">删除</button>
-            </td>
-        </tr>
-    `).join('');
-}
-
-function openCourseModal(id = null) {
-    const modal = document.getElementById('course-modal');
-    const form = document.getElementById('course-form');
-    
-    if (id !== null) {
-        const course = (configData.schedule?.courses || []).find(c => String(c.id) === String(id));
-        if (!course) {
-            console.error('找不到课程:', id);
-            showToast('找不到该课程', 'error');
-            return;
-        }
-        form.elements.id.value = course.id;
-        form.elements.name.value = course.name;
-        form.elements.day.value = course.day;
-        form.elements.location.value = course.location || '';
-        form.elements.startTime.value = course.startTime;
-        form.elements.endTime.value = course.endTime;
-        form.elements.color.value = course.color || '#3b82f6';
-    } else {
-        form.reset();
-        form.elements.id.value = '';
-        form.elements.color.value = '#3b82f6';
-    }
-    
-    modal.classList.add('show');
-}
-
-function closeCourseModal() {
-    document.getElementById('course-modal').classList.remove('show');
-}
-
-function editCourse(id) {
-    openCourseModal(id);
-}
-
-async function deleteCourse(id) {
-    if (!confirm('确定删除这门课程？')) return;
-
-    console.log('正在删除课程，ID:', id);
-
-    try {
-        const { data: result } = await authFetch(`${API_BASE}/api/schedule/courses/${id}`, {
-            method: 'DELETE'
-        });
-        console.log('删除课程响应:', result);
-
-        if (result.success) {
-            showToast('课程已删除');
-            await loadConfig();
-        } else {
-            showToast(result.message || '删除失败', 'error');
-        }
-    } catch (err) {
-        console.error('删除课程失败:', err);
-        showToast('删除失败: ' + err.message, 'error');
-    }
-}
-
-function openEventModal(id = null) {
-    const modal = document.getElementById('event-modal');
-    const form = document.getElementById('event-form');
-    
-    if (id !== null) {
-        const event = (configData.schedule?.events || []).find(e => String(e.id) === String(id));
-        if (!event) {
-            console.error('找不到日程:', id);
-            showToast('找不到该日程', 'error');
-            return;
-        }
-        form.elements.id.value = event.id;
-        form.elements.name.value = event.name;
-        form.elements.day.value = event.day;
-        form.elements.type.value = event.type;
-        form.elements.startTime.value = event.startTime;
-        form.elements.endTime.value = event.endTime;
-        form.elements.color.value = event.color || '#22c55e';
-    } else {
-        form.reset();
-        form.elements.id.value = '';
-        form.elements.color.value = '#22c55e';
-    }
-    
-    modal.classList.add('show');
-}
-
-function closeEventModal() {
-    document.getElementById('event-modal').classList.remove('show');
-}
-
-function editEvent(id) {
-    openEventModal(id);
-}
-
-async function deleteEvent(id) {
-    if (!confirm('确定删除这个日程？')) return;
-
-    console.log('正在删除日程，ID:', id);
-
-    try {
-        const { data: result } = await authFetch(`${API_BASE}/api/schedule/events/${id}`, {
-            method: 'DELETE'
-        });
-        console.log('删除日程响应:', result);
-
-        if (result.success) {
-            showToast('日程已删除');
-            await loadConfig();
-        } else {
-            showToast(result.message || '删除失败', 'error');
-        }
-    } catch (err) {
-        console.error('删除日程失败:', err);
-        showToast('删除失败: ' + err.message, 'error');
     }
 }
 

@@ -556,8 +556,8 @@ router.post('/execute/admin', assertNotLocked, async (req, res) => {
             if (!config.apis) config.apis = {};
             if (!config.tags) config.tags = [];
             if (!config.links) config.links = [];
-            if (!config.schedule) config.schedule = { courses: [], events: [] };
             if (!config.activities) config.activities = [];
+            if (!config.blog) config.blog = { articles: [] };
             if (!config.widgets) config.widgets = { sakana: { enabled: true, characters: [] } };
 
             fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');

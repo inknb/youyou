@@ -22,11 +22,6 @@ function sanitizeUrl(url) {
     return /^https?:\/\//i.test(trimmed) ? trimmed : '#';
 }
 
-// 颜色值校验（防止 style 属性注入）
-function sanitizeColor(color, fallback = '#3b82f6') {
-    return /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : fallback;
-}
-
 // 带时间戳的图片 URL（正确处理已有 query 的情况）
 function withTimestamp(url) {
     const sep = url.includes('?') ? '&' : '?';
@@ -84,7 +79,6 @@ function getDefaultConfig() {
             { name: '博客', url: '#', icon: 'edit', color: '#3b82f6' },
             { name: 'GitHub', url: '#', icon: 'github', color: '#333' }
         ],
-        schedule: { courses: [], events: [] },
         widgets: {
             sakana: { enabled: true, characters: [
                 { name: 'chisato', position: 'right', size: 200 },
@@ -191,11 +185,14 @@ async function initPage() {
     // 渲染动态
     renderActivities();
 
+    // 加载博客
+    loadBlog();
+
     // 加载图片
     loadAnimeImage();
 
-    // 加载日程
-    await loadSchedule();
+    // 加载壁纸背景（首次立即加载，之后由定时器轮换）
+    startWallpaper();
 
     // 初始化 Sakana 挂件
     initSakana();
@@ -275,6 +272,100 @@ function renderActivities() {
     `).join('');
 }
 
+// 加载博客列表（60s 内不重复拉取，防切回标签页频繁请求）
+let blogLoadedAt = 0;
+let blogLoading = false;
+
+async function loadBlog() {
+    if (blogLoading) return;
+    const now = Date.now();
+    if (now - blogLoadedAt < 60000) return;
+
+    blogLoading = true;
+    const container = document.getElementById('blog-list');
+    if (!container) { blogLoading = false; return; }
+
+    try {
+        const res = await fetch(`${API_BASE}/api/blog?page=1&pageSize=5`, { cache: 'no-store' });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || '加载失败');
+
+        const { list, total } = data.data;
+
+        // 更新本站数据的博客文章统计
+        const blogCountEl = document.getElementById('blog-count');
+        if (blogCountEl) blogCountEl.textContent = total || 0;
+
+        if (!list || list.length === 0) {
+            container.innerHTML = '<div class="blog-empty">还没有文章，敬请期待 ~</div>';
+            return;
+        }
+
+        container.innerHTML = list.map(item => {
+            const cover = item.cover
+                ? `<div class="blog-card-cover"><img src="${escapeHtml(sanitizeUrl(item.cover))}" alt="${escapeHtml(item.title)}" loading="lazy" onerror="this.parentElement.classList.add('broken')"></div>`
+                : '';
+            return `
+            <a class="blog-card" href="blog.html?id=${encodeURIComponent(item.id)}">
+                ${cover}
+                <div class="blog-card-main">
+                    <div class="blog-card-title">${escapeHtml(item.title)}</div>
+                    <div class="blog-card-summary">${escapeHtml(item.summary) || '点击阅读全文 →'}</div>
+                </div>
+                <div class="blog-card-meta">
+                    <span class="blog-category">${escapeHtml(item.category)}</span>
+                    <span class="blog-date">${escapeHtml(item.createdAt)}</span>
+                </div>
+            </a>
+        `;
+        }).join('');
+
+        if (total > list.length) {
+            container.innerHTML += `<a class="blog-more-line" href="blog.html">查看全部文章 (${total}) →</a>`;
+        }
+    } catch (err) {
+        console.error('加载博客失败:', err);
+        container.innerHTML = '<div class="blog-empty">博客加载失败</div>';
+    } finally {
+        blogLoading = false;
+        blogLoadedAt = Date.now();
+    }
+}
+
+// 加载二次元壁纸背景（模糊全屏背景，复用动漫图 API，仅页面首次加载时设置一张）
+let wallpaperApiIndex = 0;
+let wallpaperLoaded = false;
+
+function loadWallpaper() {
+    const wallpaperEl = document.getElementById('bg-wallpaper');
+    if (!wallpaperEl) return;
+
+    const enabledApis = (config.apis?.anime || []).filter(api => api.enabled).sort((a, b) => a.priority - b.priority);
+    if (enabledApis.length === 0) return;
+
+    // 壁纸优先用非主图源，避免与左侧卡片图片重复；只有一个源时退回共用
+    const wallpaperApis = enabledApis.length > 1 ? enabledApis.slice(1) : enabledApis;
+
+    const api = wallpaperApis[wallpaperApiIndex % wallpaperApis.length];
+    wallpaperApiIndex = (wallpaperApiIndex + 1) % wallpaperApis.length;
+
+    const img = new Image();
+    img.onload = () => {
+        wallpaperEl.style.backgroundImage = `url(${withTimestamp(api.url)})`;
+        wallpaperEl.classList.add('ready');
+    };
+    img.onerror = () => {
+        // 加载失败保持当前背景（渐变网格兜底）
+    };
+    img.src = withTimestamp(api.url);
+}
+
+function startWallpaper() {
+    if (wallpaperLoaded) return;
+    wallpaperLoaded = true;
+    loadWallpaper();
+}
+
 // 加载二次元图片
 function loadAnimeImage() {
     const imgDiv = document.getElementById('anime-img');
@@ -299,112 +390,6 @@ function loadAnimeImage() {
     };
 
     img.src = withTimestamp(primaryApi.url);
-}
-
-// 加载日程
-async function loadSchedule() {
-    try {
-        const res = await fetch(`${API_BASE}/api/schedule`, { cache: 'no-store' });
-        const data = await res.json();
-        
-        if (!data.success) return;
-        
-        const { courses, events } = data.data;
-        renderSchedule(courses, events);
-        
-        // 检查当前进行中的日程
-        checkCurrentSchedule(courses, events);
-        
-    } catch (err) {
-        console.error('加载日程失败:', err);
-        renderSchedule([], []);
-    }
-}
-
-// 渲染日程列表
-function renderSchedule(courses, events) {
-    const container = document.getElementById('schedule-list');
-    const now = new Date();
-    const currentDay = now.getDay() || 7;
-
-    // 合并课程和日程，按时间排序
-    const todayItems = [
-        ...courses.filter(c => c.day === currentDay).map(c => ({ ...c, type: 'course' })),
-        ...events.filter(e => e.day === currentDay).map(e => ({ ...e, type: 'event' }))
-    ].sort((a, b) => a.startTime.localeCompare(b.startTime));
-
-    if (todayItems.length === 0) {
-        container.innerHTML = '<div class="schedule-empty">今天没有安排，休息一下吧 ~</div>';
-        updateScheduleCount(0);
-        return;
-    }
-
-    updateScheduleCount(todayItems.length);
-
-    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-    container.innerHTML = todayItems.map(item => {
-        const isCurrent = currentTime >= item.startTime && currentTime <= item.endTime;
-        const typeName = item.type === 'course' ? '课程' : '日程';
-        const itemColor = sanitizeColor(item.color, '#02539a');
-
-        return `
-            <div class="schedule-item ${isCurrent ? 'current' : ''}" style="--item-color: ${itemColor}">
-                <div class="schedule-time">
-                    <span class="time-start">${escapeHtml(item.startTime)}</span>
-                    <span class="time-separator"></span>
-                    <span class="time-end">${escapeHtml(item.endTime)}</span>
-                </div>
-                <div class="schedule-info">
-                    <div class="schedule-name">${escapeHtml(item.name)}</div>
-                    ${item.location ? `<div class="schedule-location">${escapeHtml(item.location)}</div>` : ''}
-                </div>
-                <span class="schedule-type" style="background: ${itemColor}12; color: ${itemColor}; border: 1px solid ${itemColor}30;">
-                    ${typeName}
-                </span>
-            </div>
-        `;
-    }).join('');
-}
-
-// 检查当前进行中的日程
-function checkCurrentSchedule(courses, events) {
-    const now = new Date();
-    const currentDay = now.getDay() || 7;
-    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    
-    const currentCourse = courses.find(c => 
-        c.day === currentDay && 
-        currentTime >= c.startTime && 
-        currentTime <= c.endTime
-    );
-    
-    const currentEvent = events.find(e => 
-        e.day === currentDay && 
-        currentTime >= e.startTime && 
-        currentTime <= e.endTime
-    );
-    
-    const alertEl = document.getElementById('schedule-alert');
-    const alertText = document.getElementById('alert-text');
-
-    const setAlert = (prefix, name, suffix) => {
-        alertEl.style.display = 'block';
-        alertText.textContent = '';
-        alertText.appendChild(document.createTextNode(prefix));
-        const strong = document.createElement('strong');
-        strong.textContent = name;
-        alertText.appendChild(strong);
-        if (suffix) alertText.appendChild(document.createTextNode(suffix));
-    };
-
-    if (currentCourse) {
-        setAlert('正在上课：', currentCourse.name, ` @ ${currentCourse.location || '未知地点'}`);
-    } else if (currentEvent) {
-        setAlert('正在进行：', currentEvent.name);
-    } else {
-        alertEl.style.display = 'none';
-    }
 }
 
 // 初始化 Sakana 挂件
@@ -436,13 +421,6 @@ function initSakana() {
 
     sakanaInitialized = true;
 }
-
-// 每分钟刷新一次日程状态
-setInterval(() => {
-    if (config) {
-        loadSchedule();
-    }
-}, 60000);
 
 // 页面重新可见时刷新数据，确保后台修改后切回前台能看到最新内容
 document.addEventListener('visibilitychange', () => {
@@ -496,7 +474,7 @@ async function loadWeather() {
 
             weatherBox.innerHTML = `
                 <span style="font-size: 1.2rem;">${icon}</span>
-                <span>${data.weather} ${data.temp}°C</span>
+                <span>${data.weather} ${data.temp}°C${data.city ? ' · ' + escapeHtml(data.city) : ''}</span>
             `;
         } else {
             weatherBox.innerHTML = '<span style="font-size: 1.2rem;">☀</span><span>获取失败</span>';
@@ -565,10 +543,6 @@ function updateStats() {
     // 动态总数
     const activities = config?.activities?.length || 0;
     document.getElementById('activity-count').textContent = activities;
-
-    // 本周课程数
-    const weekCourses = config?.schedule?.courses?.length || 0;
-    document.getElementById('course-count').textContent = weekCourses;
 }
 
 // 刷新二次元图片
@@ -593,14 +567,6 @@ function refreshImage() {
         imgDiv.style.opacity = '1';
     };
     img.src = withTimestamp(randomApi.url);
-}
-
-// 更新日程数量徽章
-function updateScheduleCount(count) {
-    const badge = document.getElementById('schedule-count');
-    if (badge) {
-        badge.textContent = `${count} 项`;
-    }
 }
 
 // 更新网站图标

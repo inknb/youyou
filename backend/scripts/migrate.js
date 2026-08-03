@@ -21,6 +21,16 @@ function md5(str) {
     return crypto.createHash('md5').update(str).digest('hex');
 }
 
+// 解析本地时间字符串为 MySQL datetime（不转换时区）
+// 支持 YYYY-MM-DD HH:mm:ss 与 ISO 格式；无法解析返回 null
+function toLocalMySQLDatetime(value) {
+    if (!value) return null;
+    const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
+    if (!m) return null;
+    const [, y, mo, d, h, mi, s] = m;
+    return `${y}-${mo}-${d} ${h}:${mi}:${s}`;
+}
+
 /**
  * 主迁移函数
  */
@@ -207,34 +217,6 @@ async function migrate() {
             console.log(`外链迁移完成 (${config.links.length} 个)`);
         }
 
-        // 迁移课程（先清空，保证幂等）
-        console.log('迁移课程...');
-        if (config.schedule?.courses && Array.isArray(config.schedule.courses)) {
-            await connection.query(`DELETE FROM \`${prefix}courses\``);
-            for (const course of config.schedule.courses) {
-                await connection.query(
-                    `INSERT INTO \`${prefix}courses\` (name, day, start_time, end_time, location, color)
-                     VALUES (?, ?, ?, ?, ?, ?)`,
-                    [course.name || '', course.day ?? 1, course.startTime || '00:00', course.endTime || '00:00', course.location || null, course.color || '#3b82f6']
-                );
-            }
-            console.log(`课程迁移完成 (${config.schedule.courses.length} 个)`);
-        }
-
-        // 迁移日程（先清空，保证幂等）
-        console.log('迁移日程...');
-        if (config.schedule?.events && Array.isArray(config.schedule.events)) {
-            await connection.query(`DELETE FROM \`${prefix}events\``);
-            for (const event of config.schedule.events) {
-                await connection.query(
-                    `INSERT INTO \`${prefix}events\` (name, day, start_time, end_time, type, color)
-                     VALUES (?, ?, ?, ?, ?, ?)`,
-                    [event.name || '', event.day ?? 1, event.startTime || '00:00', event.endTime || '00:00', event.type || 'other', event.color || '#22c55e']
-                );
-            }
-            console.log(`日程迁移完成 (${config.schedule.events.length} 个)`);
-        }
-
         // 迁移动态（先清空，保证幂等）
         console.log('迁移动态...');
         if (config.activities && Array.isArray(config.activities)) {
@@ -247,6 +229,34 @@ async function migrate() {
                 );
             }
             console.log(`动态迁移完成 (${config.activities.length} 个)`);
+        }
+
+        // 迁移博客文章（先清空，保证幂等）
+        console.log('迁移博客文章...');
+        if (config.blog?.articles && Array.isArray(config.blog.articles)) {
+            await connection.query(`DELETE FROM \`${prefix}articles\``);
+            for (const article of config.blog.articles) {
+                const createdAt = toLocalMySQLDatetime(article.createdAt);
+                if (article.createdAt && !createdAt) {
+                    console.warn(`文章「${article.title || '(无标题)'}」的 createdAt 无法解析，将使用当前时间`);
+                }
+                if (createdAt) {
+                    await connection.query(
+                        `INSERT INTO \`${prefix}articles\` (title, content, summary, cover, category, published, created_at)
+                         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                        [article.title || '', article.content || '', article.summary || '', article.cover || '',
+                         article.category || '未分类', article.published ? 1 : 0, createdAt]
+                    );
+                } else {
+                    await connection.query(
+                        `INSERT INTO \`${prefix}articles\` (title, content, summary, cover, category, published)
+                         VALUES (?, ?, ?, ?, ?, ?)`,
+                        [article.title || '', article.content || '', article.summary || '', article.cover || '',
+                         article.category || '未分类', article.published ? 1 : 0]
+                    );
+                }
+            }
+            console.log(`博客文章迁移完成 (${config.blog.articles.length} 篇)`);
         }
 
         // 迁移挂件配置（config 列不重复存 enabled，由 enabled 列单独承载）

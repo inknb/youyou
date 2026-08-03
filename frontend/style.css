@@ -41,6 +41,37 @@ body {
     opacity: 0.8;
 }
 
+/* 二次元壁纸背景（模糊 + 白色遮罩保证内容可读性） */
+#bg-wallpaper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -2;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: blur(4px);
+    transform: scale(1.02);
+    opacity: 0;
+    transition: opacity 0.8s ease;
+}
+
+#bg-wallpaper::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(248, 250, 252, 0.1);
+}
+
+#bg-wallpaper.ready {
+    opacity: 1;
+}
+
 .container {
     max-width: 1200px;
     margin: 0 auto;
@@ -159,33 +190,6 @@ body {
     bottom: -40px;
     right: -20px;
     line-height: 1;
-}
-
-/* 日程提醒 */
-.schedule-alert {
-    background: linear-gradient(135deg, #fef3c7, #fde68a);
-    border-radius: var(--radius-sm);
-    padding: 16px 24px;
-    margin-bottom: 48px;
-    border-left: 4px solid #f59e0b;
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.85; }
-}
-
-.alert-content {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-weight: 500;
-    color: #92400e;
-}
-
-.alert-icon {
-    font-size: 1.4rem;
 }
 
 /* 主网格布局 */
@@ -509,16 +513,6 @@ body {
     font-weight: 500;
 }
 
-/* 日程区域 */
-.schedule-section {
-    margin-bottom: 48px;
-    background: var(--card-bg);
-    border-radius: var(--radius-lg);
-    padding: 28px;
-    box-shadow: var(--shadow-soft);
-    border: 1px solid rgba(255, 255, 255, 0.5);
-}
-
 .section-header {
     display: flex;
     align-items: center;
@@ -543,142 +537,6 @@ body {
     height: 20px;
     background: linear-gradient(180deg, var(--primary-blue), #3b82f6);
     border-radius: 2px;
-}
-
-.section-badge {
-    padding: 6px 14px;
-    background: linear-gradient(135deg, #eff6ff, #dbeafe);
-    color: var(--primary-blue);
-    border-radius: 100px;
-    font-size: 0.85rem;
-    font-weight: 600;
-}
-
-.schedule-list {
-    display: grid;
-    gap: 16px;
-}
-
-.schedule-item {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    background: var(--card-bg);
-    border-radius: var(--radius-sm);
-    box-shadow: var(--shadow-soft);
-    overflow: hidden;
-    transition: all 0.3s ease;
-    position: relative;
-}
-
-.schedule-item::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 4px;
-    background: var(--item-color, var(--primary-blue));
-    transition: all 0.3s ease;
-}
-
-.schedule-item:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
-}
-
-.schedule-item:hover::before {
-    width: 6px;
-}
-
-.schedule-item.current {
-    background: linear-gradient(135deg, #fffbeb, #fef3c7);
-}
-
-.schedule-item.current::before {
-    background: linear-gradient(180deg, #f59e0b, #d97706);
-    width: 6px;
-}
-
-.schedule-item.current::after {
-    content: 'NOW';
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    padding: 3px 8px;
-    background: linear-gradient(135deg, #f59e0b, #d97706);
-    color: white;
-    font-size: 0.65rem;
-    font-weight: 700;
-    border-radius: 4px;
-    letter-spacing: 0.5px;
-}
-
-.schedule-time {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 20px 24px;
-    background: #f8fafc;
-    border-right: 1px solid #f1f5f9;
-}
-
-.schedule-time .time-start {
-    font-weight: 700;
-    color: var(--item-color, var(--primary-blue));
-    font-size: 1.2rem;
-    line-height: 1;
-}
-
-.schedule-time .time-separator {
-    width: 20px;
-    height: 1px;
-    background: #cbd5e1;
-    margin: 8px 0;
-}
-
-.schedule-time .time-end {
-    font-weight: 600;
-    color: #94a3b8;
-    font-size: 1rem;
-}
-
-.schedule-info {
-    padding: 16px 24px;
-}
-
-.schedule-name {
-    font-weight: 600;
-    font-size: 1.05rem;
-    color: var(--text-main);
-    margin-bottom: 6px;
-}
-
-.schedule-location {
-    font-size: 0.85rem;
-    color: var(--text-sub);
-}
-
-.schedule-type {
-    margin-right: 20px;
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    white-space: nowrap;
-}
-    border-radius: 100px;
-    font-size: 0.75rem;
-    font-weight: 600;
-}
-
-.schedule-empty {
-    text-align: center;
-    padding: 40px;
-    color: var(--text-sub);
-    font-style: italic;
-    background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-    border-radius: var(--radius-sm);
 }
 
 /* 活动区域 */
@@ -737,6 +595,83 @@ body {
 .activity-time {
     font-size: 0.8rem;
     color: var(--text-sub);
+}
+
+/* 博客区域（卡片样式见 blog.css，两页共用同一份定义） */
+.blog-section {
+    margin-bottom: 40px;
+    background: var(--card-bg);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    box-shadow: var(--shadow-soft);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.blog-more {
+    color: var(--primary-blue);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.blog-more:hover {
+    text-decoration: underline;
+}
+
+.blog-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* 首页博客卡片：横排大封面布局（覆盖 blog.css 的纵向杂志布局） */
+.blog-section .blog-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.blog-section .blog-card {
+    flex-direction: row;
+    align-items: center;
+    gap: 18px;
+    padding: 14px 20px;
+}
+
+.blog-section .blog-card-cover {
+    width: 220px;
+    height: 140px;
+    border-radius: 12px;
+    flex-shrink: 0;
+}
+
+.blog-section .blog-card-main {
+    padding: 0;
+}
+
+.blog-section .blog-card-meta {
+    flex-direction: column;
+    align-items: flex-end;
+    padding: 0;
+}
+
+@media (max-width: 640px) {
+    .blog-section .blog-card {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .blog-section .blog-card-cover {
+        width: 100%;
+        height: 170px;
+    }
+
+    .blog-section .blog-card-meta {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
 }
 
 /* Sakana 挂件 */
@@ -864,37 +799,6 @@ body {
         min-height: 280px; 
     }
     
-    /* 日程列表 */
-    .schedule-item {
-        grid-template-columns: 1fr;
-        gap: 0;
-    }
-
-    .schedule-time {
-        flex-direction: row;
-        justify-content: flex-start;
-        gap: 12px;
-        padding: 12px 16px;
-        border-right: none;
-        border-bottom: 1px solid #f1f5f9;
-    }
-
-    .schedule-time .time-separator {
-        width: 1px;
-        height: 16px;
-        margin: 0;
-    }
-
-    .schedule-info {
-        padding: 12px 16px;
-    }
-
-    .schedule-type {
-        margin: 0 16px 12px;
-        justify-self: start;
-    }
-
-    .schedule-section,
     .activity-section {
         padding: 20px;
         margin-bottom: 32px;

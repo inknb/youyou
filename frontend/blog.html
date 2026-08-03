@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="blog-page-title">博客 · 悠悠の小站</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="blog.css">
+</head>
+<body>
+    <div class="bg-dots"></div>
+
+    <main class="blog-container">
+        <header class="blog-topbar">
+            <a href="/" class="blog-back">← 返回首页</a>
+            <span class="blog-site-name" id="blog-site-name">悠悠の小站</span>
+        </header>
+
+        <!-- 文章列表 -->
+        <section id="blog-list-view">
+            <div class="section-header">
+                <h1 class="blog-list-title">全部文章</h1>
+                <input type="search" id="blog-search" class="blog-search" placeholder="搜索文章..." autocomplete="off">
+            </div>
+            <div class="blog-list" id="blog-list">
+                <div class="blog-empty">加载中...</div>
+            </div>
+            <button id="blog-load-more" class="blog-load-more" style="display: none;">加载更多</button>
+        </section>
+
+        <!-- 文章详情 -->
+        <article id="blog-detail-view" style="display: none;">
+            <div class="blog-detail-header">
+                <h1 class="blog-detail-title" id="blog-title">-</h1>
+                <div class="blog-detail-meta">
+                    <span class="blog-category" id="blog-category">-</span>
+                    <span class="blog-date" id="blog-date">-</span>
+                </div>
+            </div>
+            <div class="blog-detail-content" id="blog-content"></div>
+            <div class="blog-detail-footer">
+                <a href="blog.html" class="blog-back">← 返回文章列表</a>
+            </div>
+        </article>
+
+        <!-- 404 -->
+        <div id="blog-not-found" class="blog-empty" style="display: none;">文章不存在或已删除</div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    <script src="blog.js"></script>
+</body>
+</html>

@@ -22,6 +22,10 @@ const PORT = process.env.PORT || 3000;
 // 禁用 ETag，防止浏览器缓存 API 响应导致数据不同步
 app.set('etag', false);
 
+// 信任反向代理（仅一层 Nginx），使 req.ip 取到真实访问者 IP（用于天气定位）
+// 注意：不要用 trust proxy: true，否则客户端可伪造 X-Forwarded-For 绕过登录限频
+app.set('trust proxy', 1);
+
 // Token 有效期（24小时）
 const TOKEN_EXPIRY = 24 * 60 * 60 * 1000;
 
@@ -355,86 +359,6 @@ app.post('/api/config/links', authMiddleware, async (req, res) => {
   }
 });
 
-// ========== 日程管理 API ==========
-
-// 获取所有日程
-app.get('/api/schedule', async (req, res) => {
-  const schedule = await store.getSchedule();
-  if (schedule) {
-    res.json({
-      success: true,
-      data: schedule
-    });
-  } else {
-    res.status(500).json({ success: false, message: '读取失败' });
-  }
-});
-
-// 添加课程
-app.post('/api/schedule/courses', authMiddleware, async (req, res) => {
-  const { id, ...courseData } = req.body;
-  const newCourse = await store.addCourse(courseData);
-
-  if (newCourse) {
-    res.json({ success: true, message: '课程已添加', data: newCourse });
-  } else {
-    res.status(500).json({ success: false, message: '保存失败' });
-  }
-});
-
-// 更新课程
-app.put('/api/schedule/courses/:id', authMiddleware, async (req, res) => {
-  const targetId = req.params.id;
-  const updated = await store.updateCourse(targetId, req.body);
-
-  if (updated) {
-    res.json({ success: true, message: '课程已更新' });
-  } else {
-    res.status(404).json({ success: false, message: '课程不存在或保存失败' });
-  }
-});
-
-// 删除课程
-app.delete('/api/schedule/courses/:id', authMiddleware, async (req, res) => {
-  if (await store.deleteCourse(req.params.id)) {
-    res.json({ success: true, message: '课程已删除' });
-  } else {
-    res.status(500).json({ success: false, message: '保存失败' });
-  }
-});
-
-// 添加日程安排
-app.post('/api/schedule/events', authMiddleware, async (req, res) => {
-  const { id, ...eventData } = req.body;
-  const newEvent = await store.addEvent(eventData);
-
-  if (newEvent) {
-    res.json({ success: true, message: '日程已添加', data: newEvent });
-  } else {
-    res.status(500).json({ success: false, message: '保存失败' });
-  }
-});
-
-// 更新日程
-app.put('/api/schedule/events/:id', authMiddleware, async (req, res) => {
-  const updated = await store.updateEvent(req.params.id, req.body);
-
-  if (updated) {
-    res.json({ success: true, message: '日程已更新' });
-  } else {
-    res.status(404).json({ success: false, message: '日程不存在或保存失败' });
-  }
-});
-
-// 删除日程
-app.delete('/api/schedule/events/:id', authMiddleware, async (req, res) => {
-  if (await store.deleteEvent(req.params.id)) {
-    res.json({ success: true, message: '日程已删除' });
-  } else {
-    res.status(500).json({ success: false, message: '保存失败' });
-  }
-});
-
 // ========== 动态管理 API ==========
 
 // 获取所有动态
@@ -475,7 +399,110 @@ app.delete('/api/activities/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// ========== 博客 API ==========
+
+// 可选认证：带有效 token 时标记 req.isAdmin（后台列表需要看到草稿）
+async function optionalAuth(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (token) {
+    try {
+      const admin = await store.getAdmin();
+      if (admin && tokenEqual(admin.token, token)) {
+        const expired = admin.tokenExpiry && Date.now() > Number(admin.tokenExpiry);
+        if (!expired) req.isAdmin = true;
+      }
+    } catch (e) { /* 忽略，按匿名处理 */ }
+  }
+  next();
+}
+
+// 获取文章列表（匿名仅见已发布；带 token 可见全部；支持 keyword 搜索标题/摘要/正文）
+app.get('/api/blog', optionalAuth, async (req, res) => {
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const pageSize = Math.min(50, Math.max(1, parseInt(req.query.pageSize, 10) || 10));
+  const keyword = String(req.query.keyword || '').trim().slice(0, 100);
+  const data = await store.getArticles({ page, pageSize, publishedOnly: !req.isAdmin, keyword });
+  res.json({ success: true, data: { ...data, page, pageSize, keyword } });
+});
+
+// 获取文章详情（草稿对匿名 404）
+app.get('/api/blog/:id', optionalAuth, async (req, res) => {
+  const article = await store.getArticle(req.params.id);
+  if (!article || (!article.published && !req.isAdmin)) {
+    return res.status(404).json({ success: false, message: '文章不存在' });
+  }
+  res.json({ success: true, data: article });
+});
+
+// 新建文章
+app.post('/api/blog', authMiddleware, async (req, res) => {
+  const newArticle = await store.addArticle(req.body);
+  if (newArticle) {
+    res.json({ success: true, message: '文章已发布', data: newArticle });
+  } else {
+    res.status(500).json({ success: false, message: '保存失败' });
+  }
+});
+
+// 更新文章
+app.put('/api/blog/:id', authMiddleware, async (req, res) => {
+  const updated = await store.updateArticle(req.params.id, req.body);
+  if (updated) {
+    res.json({ success: true, message: '文章已更新' });
+  } else {
+    res.status(404).json({ success: false, message: '文章不存在或保存失败' });
+  }
+});
+
+// 删除文章
+app.delete('/api/blog/:id', authMiddleware, async (req, res) => {
+  if (await store.deleteArticle(req.params.id)) {
+    res.json({ success: true, message: '文章已删除' });
+  } else {
+    res.status(500).json({ success: false, message: '保存失败' });
+  }
+});
+
 // ========== 天气 API 代理 ==========
+
+// 判断 IP 是否为公网 IPv4（私网/回环/保留段不可定位）
+function isPublicIPv4(ip) {
+  const clean = String(ip || '').replace(/^::ffff:/, '').trim();
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(clean)) return false;
+  const parts = clean.split('.').map(Number);
+  if (parts.some(n => n < 0 || n > 255)) return false;
+  const [a, b] = parts;
+  return !(a === 0 || a === 10 || a === 127 || a >= 224 ||
+    (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) ||
+    (a === 169 && b === 254) || (a === 100 && b >= 64 && b <= 127));
+}
+
+// 通过访问者 IP 定位城市（ip-api.com 免费接口，https + 24h 缓存）
+const ipCityCache = new Map();
+const IP_CITY_TTL = 24 * 60 * 60 * 1000;
+
+async function locateCityByIp(ip) {
+  if (!isPublicIPv4(ip)) return null;
+
+  const cached = ipCityCache.get(ip);
+  if (cached && Date.now() - cached.at < IP_CITY_TTL) {
+    return cached.city;
+  }
+
+  try {
+    const fetch = (await import('node-fetch')).default;
+    const response = await fetch(`https://ip-api.com/json/${ip}?lang=zh-CN&fields=status,city`, { timeout: 5000 });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (data.status !== 'success' || !data.city) return null;
+    ipCityCache.set(ip, { city: data.city, at: Date.now() });
+    return data.city;
+  } catch (err) {
+    console.warn('[天气 IP 定位] 失败:', err.message);
+    return null;
+  }
+}
+
 app.get('/api/weather', async (req, res) => {
   const apis = await store.getApis();
 
@@ -485,7 +512,24 @@ app.get('/api/weather', async (req, res) => {
 
   const weatherConfig = apis.weather;
   const weatherUrl = weatherConfig.url || 'https://uapis.cn/api/v1/misc/weather';
-  const city = weatherConfig.city || req.query.city || '';
+
+  // 定位优先级：手动 city 参数 > 访问者 IP 定位 > 后台配置城市 > 上游默认
+  let source = 'default';
+  let city = req.query.city || '';
+
+  if (city) {
+    source = 'manual';
+  } else {
+    // 仅使用服务端获取的真实访问者 IP，不接受客户端指定（防止被滥用为代理）
+    const located = await locateCityByIp(req.ip);
+    if (located) {
+      city = located;
+      source = 'ip';
+    } else {
+      city = weatherConfig.city || '';
+      source = city ? 'config' : 'default';
+    }
+  }
 
   let url = weatherUrl;
   if (city) {
@@ -519,7 +563,8 @@ app.get('/api/weather', async (req, res) => {
       weather: data.weather,
       weatherCode: data.weather_icon,
       humidity: data.humidity,
-      wind: data.wind_direction + data.wind_power
+      wind: data.wind_direction + data.wind_power,
+      source
     };
 
     res.json({ success: true, data: standardizedData });
@@ -566,38 +611,64 @@ app.use((err, req, res, next) => {
   res.status(status).json({ success: false, message: status >= 500 ? '服务器内部错误' : err.message });
 });
 
-// 启动服务器
-const server = app.listen(PORT, () => {
-  console.log(`服务器运行在 http://localhost:${PORT}`);
-  console.log(`前台页面: http://localhost:${PORT}`);
-  console.log(`后台管理: http://localhost:${PORT}/admin`);
-  console.log(`数据存储模式: ${db.getMode().toUpperCase()}`);
-});
-
-server.on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`端口 ${PORT} 已被占用，请关闭其他程序或修改端口号`);
-  } else {
-    console.error('服务器启动失败:', err.message);
+// 确保博客表存在（升级现有部署时自动补表，幂等）
+async function ensureArticlesTable() {
+  if (!db.isMySQL()) return;
+  try {
+    await db.query(`CREATE TABLE IF NOT EXISTS __PREFIX__articles (
+      id INT NOT NULL AUTO_INCREMENT,
+      title VARCHAR(200) NOT NULL,
+      content MEDIUMTEXT NOT NULL,
+      summary VARCHAR(500) DEFAULT '',
+      cover VARCHAR(500) DEFAULT '',
+      category VARCHAR(50) DEFAULT '未分类',
+      published TINYINT(1) DEFAULT 1,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_created_at (created_at),
+      KEY idx_published_created (published, created_at, id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='博客文章表'`);
+    console.log('[数据库] articles 表已就绪');
+  } catch (err) {
+    console.error('[数据库] articles 表初始化失败:', err.message);
   }
-  process.exit(1);
-});
+}
 
-// 优雅关闭
-process.on('SIGTERM', async () => {
-  console.log('收到 SIGTERM 信号，正在关闭...');
-  await db.close();
-  server.close(() => {
-    console.log('服务器已关闭');
-    process.exit(0);
+// 启动服务器
+ensureArticlesTable().then(() => {
+  const server = app.listen(PORT, () => {
+    console.log(`服务器运行在 http://localhost:${PORT}`);
+    console.log(`前台页面: http://localhost:${PORT}`);
+    console.log(`后台管理: http://localhost:${PORT}/admin`);
+    console.log(`数据存储模式: ${db.getMode().toUpperCase()}`);
   });
-});
 
-process.on('SIGINT', async () => {
-  console.log('收到 SIGINT 信号，正在关闭...');
-  await db.close();
-  server.close(() => {
-    console.log('服务器已关闭');
-    process.exit(0);
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`端口 ${PORT} 已被占用，请关闭其他程序或修改端口号`);
+    } else {
+      console.error('服务器启动失败:', err.message);
+    }
+    process.exit(1);
+  });
+
+  // 优雅关闭
+  process.on('SIGTERM', async () => {
+    console.log('收到 SIGTERM 信号，正在关闭...');
+    await db.close();
+    server.close(() => {
+      console.log('服务器已关闭');
+      process.exit(0);
+    });
+  });
+
+  process.on('SIGINT', async () => {
+    console.log('收到 SIGINT 信号，正在关闭...');
+    await db.close();
+    server.close(() => {
+      console.log('服务器已关闭');
+      process.exit(0);
+    });
   });
 });

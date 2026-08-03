@@ -124,71 +124,6 @@ const JsonStore = {
         return this.writeConfig(config);
     },
 
-    // ========== 日程 ==========
-
-    async getSchedule() {
-        const config = this.readConfig();
-        return config?.schedule || { courses: [], events: [] };
-    },
-
-    async getCourses() {
-        const schedule = await this.getSchedule();
-        return schedule.courses || [];
-    },
-
-    async addCourse(course) {
-        const config = this.readConfig();
-        if (!config) return false;
-        const newCourse = { id: Date.now(), ...course };
-        config.schedule.courses.push(newCourse);
-        return this.writeConfig(config) ? newCourse : null;
-    },
-
-    async updateCourse(id, data) {
-        const config = this.readConfig();
-        if (!config) return false;
-        const index = config.schedule.courses.findIndex(c => String(c.id) === String(id));
-        if (index === -1) return null;
-        config.schedule.courses[index] = { ...config.schedule.courses[index], ...data };
-        return this.writeConfig(config) ? config.schedule.courses[index] : null;
-    },
-
-    async deleteCourse(id) {
-        const config = this.readConfig();
-        if (!config) return false;
-        config.schedule.courses = config.schedule.courses.filter(c => String(c.id) !== String(id));
-        return this.writeConfig(config);
-    },
-
-    async getEvents() {
-        const schedule = await this.getSchedule();
-        return schedule.events || [];
-    },
-
-    async addEvent(event) {
-        const config = this.readConfig();
-        if (!config) return false;
-        const newEvent = { id: Date.now(), ...event };
-        config.schedule.events.push(newEvent);
-        return this.writeConfig(config) ? newEvent : null;
-    },
-
-    async updateEvent(id, data) {
-        const config = this.readConfig();
-        if (!config) return false;
-        const index = config.schedule.events.findIndex(e => String(e.id) === String(id));
-        if (index === -1) return null;
-        config.schedule.events[index] = { ...config.schedule.events[index], ...data };
-        return this.writeConfig(config) ? config.schedule.events[index] : null;
-    },
-
-    async deleteEvent(id) {
-        const config = this.readConfig();
-        if (!config) return false;
-        config.schedule.events = config.schedule.events.filter(e => String(e.id) !== String(id));
-        return this.writeConfig(config);
-    },
-
     // ========== 动态 ==========
 
     async getActivities() {
@@ -223,6 +158,77 @@ const JsonStore = {
         return this.writeConfig(config);
     },
 
+    // ========== 博客 ==========
+
+    async getArticles({ page = 1, pageSize = 10, publishedOnly = false, keyword = '' } = {}) {
+        const config = this.readConfig();
+        const kw = String(keyword || '').trim().toLowerCase();
+        const all = (config?.blog?.articles || [])
+            .filter(a => !publishedOnly || !!a.published)
+            .filter(a => !kw || [a.title, a.summary, a.content].some(f => String(f || '').toLowerCase().includes(kw)))
+            .sort((a, b) => {
+                const t = String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+                // 与 MySQL 的 created_at DESC, id DESC 语义对齐
+                return t !== 0 ? t : String(b.id).localeCompare(String(a.id));
+            });
+        const total = all.length;
+        const start = (page - 1) * pageSize;
+        const list = all.slice(start, start + pageSize).map(({ content, ...rest }) => rest);
+        return { total, list };
+    },
+
+    async getArticle(id) {
+        const config = this.readConfig();
+        const article = (config?.blog?.articles || []).find(a => String(a.id) === String(id));
+        return article || null;
+    },
+
+    async addArticle(article) {
+        if (!article.title || !article.content) {
+            throw badRequest('文章标题和内容必填');
+        }
+        validateArticleFields(article);
+        const config = this.readConfig();
+        if (!config) return false;
+        if (!config.blog) config.blog = { articles: [] };
+        if (!Array.isArray(config.blog.articles)) config.blog.articles = [];
+        const newArticle = {
+            id: Date.now(),
+            title: article.title,
+            content: article.content,
+            summary: article.summary || '',
+            cover: article.cover || '',
+            category: article.category || '未分类',
+            published: !!article.published,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+        config.blog.articles.unshift(newArticle);
+        return this.writeConfig(config) ? newArticle : null;
+    },
+
+    async updateArticle(id, data) {
+        const config = this.readConfig();
+        if (!config || !config.blog) return false;
+        const index = config.blog.articles.findIndex(a => String(a.id) === String(id));
+        if (index === -1) return null;
+        const updated = {
+            ...config.blog.articles[index],
+            ...data,
+            id: config.blog.articles[index].id,
+            updatedAt: new Date().toISOString()
+        };
+        config.blog.articles[index] = updated;
+        return this.writeConfig(config) ? updated : null;
+    },
+
+    async deleteArticle(id) {
+        const config = this.readConfig();
+        if (!config || !config.blog) return false;
+        config.blog.articles = config.blog.articles.filter(a => String(a.id) !== String(id));
+        return this.writeConfig(config);
+    },
+
     // ========== 挂件 ==========
 
     async getWidgets() {
@@ -246,7 +252,6 @@ const JsonStore = {
             },
             tags: config.tags,
             links: config.links,
-            schedule: config.schedule,
             widgets: config.widgets,
             activities: config.activities
         };
@@ -485,92 +490,6 @@ const MySQLStore = {
         return true;
     },
 
-    // ========== 日程 ==========
-
-    async getCourses() {
-        return await db.query('SELECT id, name, day, TIME_FORMAT(start_time, "%H:%i") as startTime, TIME_FORMAT(end_time, "%H:%i") as endTime, location, color FROM __PREFIX__courses ORDER BY day, start_time');
-    },
-
-    async addCourse(course) {
-        if (!course.name || course.day == null || !course.startTime || !course.endTime) {
-            throw badRequest('课程缺少必填字段 (name/day/startTime/endTime)');
-        }
-        const result = await db.query(
-            `INSERT INTO __PREFIX__courses (name, day, start_time, end_time, location, color)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [String(course.name), course.day, course.startTime, course.endTime, course.location || null, course.color || '#3b82f6']
-        );
-        return { id: result.insertId, ...course };
-    },
-
-    async updateCourse(id, data) {
-        const fields = { name: 'name', day: 'day', startTime: 'start_time', endTime: 'end_time', location: 'location', color: 'color' };
-        const updates = [];
-        const values = [];
-        for (const [key, col] of Object.entries(fields)) {
-            if (data[key] !== undefined) { updates.push(`${col} = ?`); values.push(data[key]); }
-        }
-        if (updates.length === 0) return { id, ...data };
-        values.push(id);
-        const result = await db.query(
-            `UPDATE __PREFIX__courses SET ${updates.join(', ')} WHERE id = ?`,
-            values
-        );
-        if (result.affectedRows === 0) return null;
-        return { id, ...data };
-    },
-
-    async deleteCourse(id) {
-        await db.query('DELETE FROM __PREFIX__courses WHERE id = ?', [id]);
-        return true;
-    },
-
-    async getEvents() {
-        return await db.query('SELECT id, name, day, TIME_FORMAT(start_time, "%H:%i") as startTime, TIME_FORMAT(end_time, "%H:%i") as endTime, type, color FROM __PREFIX__events ORDER BY day, start_time');
-    },
-
-    async addEvent(event) {
-        if (!event.name || event.day == null || !event.startTime || !event.endTime) {
-            throw badRequest('日程缺少必填字段 (name/day/startTime/endTime)');
-        }
-        const result = await db.query(
-            `INSERT INTO __PREFIX__events (name, day, start_time, end_time, type, color)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [String(event.name), event.day, event.startTime, event.endTime, event.type || 'other', event.color || '#22c55e']
-        );
-        return { id: result.insertId, ...event };
-    },
-
-    async updateEvent(id, data) {
-        const fields = { name: 'name', day: 'day', startTime: 'start_time', endTime: 'end_time', type: 'type', color: 'color' };
-        const updates = [];
-        const values = [];
-        for (const [key, col] of Object.entries(fields)) {
-            if (data[key] !== undefined) { updates.push(`${col} = ?`); values.push(data[key]); }
-        }
-        if (updates.length === 0) return { id, ...data };
-        values.push(id);
-        const result = await db.query(
-            `UPDATE __PREFIX__events SET ${updates.join(', ')} WHERE id = ?`,
-            values
-        );
-        if (result.affectedRows === 0) return null;
-        return { id, ...data };
-    },
-
-    async deleteEvent(id) {
-        await db.query('DELETE FROM __PREFIX__events WHERE id = ?', [id]);
-        return true;
-    },
-
-    async getSchedule() {
-        const [courses, events] = await Promise.all([
-            this.getCourses(),
-            this.getEvents()
-        ]);
-        return { courses, events };
-    },
-
     // ========== 动态 ==========
 
     async getActivities() {
@@ -609,6 +528,94 @@ const MySQLStore = {
         return true;
     },
 
+    // ========== 博客 ==========
+
+    async getArticles({ page = 1, pageSize = 10, publishedOnly = false, keyword = '' } = {}) {
+        const p = Number(page) || 1;
+        const ps = Number(pageSize) || 10;
+        const offset = (p - 1) * ps;
+        const kw = String(keyword || '').trim();
+        const conditions = [];
+        const params = [];
+        if (publishedOnly) conditions.push('published = 1');
+        if (kw) {
+            conditions.push(`(title LIKE ? ESCAPE '\\\\' OR summary LIKE ? ESCAPE '\\\\' OR content LIKE ? ESCAPE '\\\\')`);
+            const like = `%${kw.replace(/[%_\\]/g, '\\$&')}%`;
+            params.push(like, like, like);
+        }
+        const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        const totalRow = await db.queryOne(`SELECT COUNT(*) as cnt FROM __PREFIX__articles ${where}`, params);
+        const list = await db.query(
+            `SELECT id, title, summary, cover, category, published,
+                    DATE_FORMAT(created_at, '%Y-%m-%d %H:%i') as createdAt
+             FROM __PREFIX__articles ${where}
+             ORDER BY created_at DESC, id DESC
+             LIMIT ${ps} OFFSET ${offset}`,
+            params
+        );
+        return { total: totalRow ? totalRow.cnt : 0, list };
+    },
+
+    async getArticle(id) {
+        const row = await db.queryOne(
+            `SELECT id, title, content, summary, cover, category, published,
+                    DATE_FORMAT(created_at, '%Y-%m-%d %H:%i') as createdAt,
+                    DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i') as updatedAt
+             FROM __PREFIX__articles WHERE id = ?`,
+            [id]
+        );
+        if (!row) return null;
+        return { ...row, published: !!row.published };
+    },
+
+    async addArticle(article) {
+        if (!article.title || !article.content) {
+            throw badRequest('文章标题和内容必填');
+        }
+        validateArticleFields(article);
+        const result = await db.query(
+            `INSERT INTO __PREFIX__articles (title, content, summary, cover, category, published)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [String(article.title), String(article.content), article.summary || '',
+             article.cover || '', article.category || '未分类', article.published ? 1 : 0]
+        );
+        return {
+            id: result.insertId,
+            title: article.title,
+            content: article.content,
+            summary: article.summary || '',
+            cover: article.cover || '',
+            category: article.category || '未分类',
+            published: !!article.published,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+    },
+
+    async updateArticle(id, data) {
+        validateArticleFields(data);
+        const fields = { title: 'title', content: 'content', summary: 'summary', cover: 'cover', category: 'category' };
+        const updates = [];
+        const values = [];
+        for (const [key, col] of Object.entries(fields)) {
+            if (data[key] !== undefined) { updates.push(`${col} = ?`); values.push(String(data[key])); }
+        }
+        if (data.published !== undefined) { updates.push('published = ?'); values.push(data.published ? 1 : 0); }
+        if (updates.length === 0) return { id, ...data };
+        values.push(id);
+        const result = await db.query(
+            `UPDATE __PREFIX__articles SET ${updates.join(', ')} WHERE id = ?`,
+            values
+        );
+        if (result.affectedRows === 0) return null;
+        return { id, ...data };
+    },
+
+    async deleteArticle(id) {
+        await db.query('DELETE FROM __PREFIX__articles WHERE id = ?', [id]);
+        return true;
+    },
+
     // ========== 挂件 ==========
 
     async getWidgets() {
@@ -629,17 +636,16 @@ const MySQLStore = {
     // ========== 公开配置 ==========
 
     async getPublicConfig() {
-        const [site, apis, tags, links, schedule, widgets, activities] = await Promise.all([
+        const [site, apis, tags, links, widgets, activities] = await Promise.all([
             this.getSiteConfig(),
             this.getApis(),
             this.getTags(),
             this.getLinks(),
-            this.getSchedule(),
             this.getWidgets(),
             this.getActivities()
         ]);
 
-        return { site, apis, tags, links, schedule, widgets, activities };
+        return { site, apis, tags, links, widgets, activities };
     }
 };
 
@@ -661,6 +667,16 @@ function badRequest(message) {
     return err;
 }
 
+// 文章字段长度校验（与 MySQL 列长度一致，防止超长触发数据库异常）
+function validateArticleFields(data) {
+    const limits = { title: 200, summary: 500, cover: 500, category: 50 };
+    for (const [key, max] of Object.entries(limits)) {
+        if (data[key] !== undefined && data[key] !== null && String(data[key]).length > max) {
+            throw badRequest(`文章${key === 'title' ? '标题' : key}长度不能超过 ${max} 字符`);
+        }
+    }
+}
+
 module.exports = {
     // 工具函数
     md5,
@@ -680,19 +696,15 @@ module.exports = {
     updateTags: (tags) => getStore().updateTags(tags),
     getLinks: () => getStore().getLinks(),
     updateLinks: (links) => getStore().updateLinks(links),
-    getSchedule: () => getStore().getSchedule(),
-    getCourses: () => getStore().getCourses(),
-    addCourse: (course) => getStore().addCourse(course),
-    updateCourse: (id, data) => getStore().updateCourse(id, data),
-    deleteCourse: (id) => getStore().deleteCourse(id),
-    getEvents: () => getStore().getEvents(),
-    addEvent: (event) => getStore().addEvent(event),
-    updateEvent: (id, data) => getStore().updateEvent(id, data),
-    deleteEvent: (id) => getStore().deleteEvent(id),
     getActivities: () => getStore().getActivities(),
     addActivity: (activity) => getStore().addActivity(activity),
     updateActivity: (id, data) => getStore().updateActivity(id, data),
     deleteActivity: (id) => getStore().deleteActivity(id),
+    getArticles: (opts) => getStore().getArticles(opts),
+    getArticle: (id) => getStore().getArticle(id),
+    addArticle: (article) => getStore().addArticle(article),
+    updateArticle: (id, data) => getStore().updateArticle(id, data),
+    deleteArticle: (id) => getStore().deleteArticle(id),
     getWidgets: () => getStore().getWidgets(),
     getPublicConfig: () => getStore().getPublicConfig(),
 

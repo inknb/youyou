@@ -1,0 +1,354 @@
+/* 博客页面样式（与主页 Flutter/Material 风格统一） */
+
+:root {
+    --primary-blue: #02539a;
+    --text-main: #1e293b;
+    --text-sub: #64748b;
+    --card-bg: #ffffff;
+    --radius-lg: 16px;
+    --radius-sm: 10px;
+    --shadow-soft: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.blog-container {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+}
+
+.blog-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+}
+
+.blog-back {
+    color: var(--primary-blue);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.95rem;
+}
+
+.blog-back:hover {
+    text-decoration: underline;
+}
+
+.blog-site-name {
+    color: var(--text-sub);
+    font-weight: 500;
+}
+
+/* 列表视图 */
+.blog-list-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin: 0;
+}
+
+.blog-search {
+    width: 240px;
+    padding: 10px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 100px;
+    background: var(--card-bg);
+    font-size: 0.9rem;
+    color: var(--text-main);
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.blog-search:focus {
+    border-color: var(--primary-blue);
+    box-shadow: 0 0 0 3px rgba(2, 83, 154, 0.1);
+}
+
+.blog-search::placeholder {
+    color: var(--text-sub);
+}
+
+/* 列表视图（杂志网格：封面置顶的纵向卡片） */
+.blog-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.blog-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--card-bg);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-soft);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    text-decoration: none;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.blog-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.blog-card-main {
+    flex: 1;
+    min-width: 0;
+    padding: 16px 20px 8px;
+}
+
+/* 封面图（16:9 置顶） */
+.blog-card-cover {
+    width: 100%;
+    height: 170px;
+    border-radius: 0;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+}
+
+.blog-card-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.3s ease;
+}
+
+.blog-card:hover .blog-card-cover img {
+    transform: scale(1.04);
+}
+
+.blog-card-cover.broken {
+    display: none;
+}
+
+.blog-card-title {
+    font-weight: 600;
+    font-size: 1.05rem;
+    color: var(--text-main);
+    margin-bottom: 6px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.blog-card-summary {
+    font-size: 0.85rem;
+    color: var(--text-sub);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.blog-card-meta {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 0 20px 16px;
+    margin-top: auto;
+}
+
+.blog-category {
+    padding: 4px 12px;
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+    color: var(--primary-blue);
+    border-radius: 100px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.blog-date {
+    font-size: 0.8rem;
+    color: var(--text-sub);
+}
+
+.blog-empty {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-sub);
+    background: var(--card-bg);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-soft);
+}
+
+.blog-more-line {
+    display: block;
+    text-align: center;
+    padding: 12px;
+    color: var(--primary-blue);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.blog-more-line:hover {
+    text-decoration: underline;
+}
+
+.blog-load-more {
+    display: block;
+    margin: 20px auto 0;
+    padding: 10px 32px;
+    border: 1px solid #dbeafe;
+    border-radius: 100px;
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+    color: var(--primary-blue);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.blog-load-more:hover {
+    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+}
+
+/* 详情视图 */
+.blog-detail-header {
+    background: var(--card-bg);
+    border-radius: var(--radius-lg);
+    padding: 32px 36px;
+    box-shadow: var(--shadow-soft);
+    margin-bottom: 24px;
+}
+
+.blog-detail-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text-main);
+    margin: 0 0 16px;
+    line-height: 1.4;
+}
+
+.blog-detail-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.blog-detail-content {
+    background: var(--card-bg);
+    border-radius: var(--radius-lg);
+    padding: 36px 40px;
+    box-shadow: var(--shadow-soft);
+    font-size: 1rem;
+    line-height: 1.9;
+    color: var(--text-main);
+    word-break: break-word;
+}
+
+.blog-detail-content h1,
+.blog-detail-content h2,
+.blog-detail-content h3,
+.blog-detail-content h4 {
+    margin: 1.4em 0 0.6em;
+    line-height: 1.4;
+    font-weight: 700;
+}
+
+.blog-detail-content h1 { font-size: 1.5rem; }
+.blog-detail-content h2 { font-size: 1.3rem; }
+.blog-detail-content h3 { font-size: 1.15rem; }
+
+.blog-detail-content p {
+    margin: 0 0 1em;
+}
+
+.blog-detail-content a {
+    color: var(--primary-blue);
+}
+
+.blog-detail-content img {
+    max-width: 100%;
+    border-radius: var(--radius-sm);
+}
+
+.blog-detail-content code {
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.blog-detail-content pre {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 16px 20px;
+    border-radius: var(--radius-sm);
+    overflow-x: auto;
+    margin: 0 0 1em;
+}
+
+.blog-detail-content pre code {
+    background: none;
+    padding: 0;
+    color: inherit;
+}
+
+.blog-detail-content blockquote {
+    margin: 0 0 1em;
+    padding: 8px 16px;
+    border-left: 4px solid var(--primary-blue);
+    background: #f8fafc;
+    border-radius: 0 8px 8px 0;
+    color: var(--text-sub);
+}
+
+.blog-detail-content table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0 0 1em;
+}
+
+.blog-detail-content th,
+.blog-detail-content td {
+    border: 1px solid #e2e8f0;
+    padding: 8px 12px;
+    text-align: left;
+}
+
+.blog-detail-content th {
+    background: #f8fafc;
+}
+
+.blog-detail-footer {
+    margin-top: 24px;
+    text-align: center;
+}
+
+/* 移动端 */
+@media (max-width: 640px) {
+    .blog-list {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .blog-card-cover {
+        height: 180px;
+    }
+
+    .blog-search {
+        width: 100%;
+        margin-top: 12px;
+    }
+
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .blog-detail-header,
+    .blog-detail-content {
+        padding: 24px 20px;
+    }
+
+    .blog-detail-title {
+        font-size: 1.3rem;
+    }
+}

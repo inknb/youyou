@@ -12,8 +12,8 @@
 - **每日一言** - 多 API 源随机展示励志语句
 - **个人标签** - 展示兴趣爱好标签
 - **外链入口** - 社交媒体与项目链接
-- **日程提醒** - 实时显示当前课程或个人日程
-- **天气显示** - 基于 IP 自动定位或手动配置城市
+- **博客** - 文章列表与 Markdown 详情页（支持分类与草稿）
+- **天气显示** - 基于访问者 IP 自动定位或手动配置城市
 - **Sakana 挂件** - 桌面宠物装饰（移动端自动隐藏）
 
 ### 后台管理
@@ -24,8 +24,8 @@
 - **API 管理** - 图片 API、一言 API、天气 API 的启用/禁用与优先级
 - **标签管理** - 添加/删除个人兴趣标签
 - **外链管理** - 自定义社交链接与图标
-- **日程管理** - 课程表与个人日程的增删改
 - **动态管理** - 发布与管理首页动态
+- **博客管理** - Markdown 文章发布、分类与草稿管理
 - **账户设置** - 修改管理员用户名与密码
 
 ### 安装向导
@@ -129,15 +129,11 @@ DB_NAME=personal_homepage
 DB_PREFIX=hp_
 ```
 
-### 日程类型
+### 博客文章
 
-| 类型标识 | 说明 |
-|---------|------|
-| course | 课程 |
-| hobby | 兴趣爱好 |
-| project | 项目开发 |
-| study | 学习 |
-| other | 其他 |
+- 支持 **Markdown** 格式，前台用 marked.js + DOMPurify 渲染
+- 支持**分类**（默认「未分类」）与**草稿/发布**状态（草稿仅后台可见）
+- 文章列表接口分页：`GET /api/blog?page=1&pageSize=10`（pageSize 上限 50）
 
 ### Sakana 角色
 
@@ -212,9 +208,10 @@ server {
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/config` | 获取前台配置 |
-| GET | `/api/schedule` | 获取日程数据 |
 | GET | `/api/activities` | 获取动态列表 |
-| GET | `/api/weather` | 获取天气信息 |
+| GET | `/api/blog` | 获取文章列表（分页，匿名仅已发布） |
+| GET | `/api/blog/:id` | 获取文章详情（草稿仅后台可见） |
+| GET | `/api/weather` | 获取天气信息（按访问者 IP 定位） |
 
 ### 认证接口
 
@@ -234,17 +231,6 @@ server {
 | POST | `/api/config/tags` | 更新标签 |
 | POST | `/api/config/links` | 更新外链 |
 
-### 日程接口（需认证）
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/schedule/courses` | 添加课程 |
-| PUT | `/api/schedule/courses/:id` | 更新课程 |
-| DELETE | `/api/schedule/courses/:id` | 删除课程 |
-| POST | `/api/schedule/events` | 添加日程 |
-| PUT | `/api/schedule/events/:id` | 更新日程 |
-| DELETE | `/api/schedule/events/:id` | 删除日程 |
-
 ### 动态接口（需认证）
 
 | 方法 | 路径 | 说明 |
@@ -252,6 +238,14 @@ server {
 | POST | `/api/activities` | 添加动态 |
 | PUT | `/api/activities/:id` | 更新动态 |
 | DELETE | `/api/activities/:id` | 删除动态 |
+
+### 博客接口（需认证）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/blog` | 发布文章 |
+| PUT | `/api/blog/:id` | 更新文章 |
+| DELETE | `/api/blog/:id` | 删除文章 |
 
 ## 响应式设计
 
