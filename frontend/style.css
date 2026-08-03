@@ -301,6 +301,44 @@ body {
     transform: scale(1.02);
 }
 
+/* 博客封面模式：可点击进入文章 */
+#anime-img.blog-cover {
+    cursor: pointer;
+}
+
+#anime-img.blog-cover:hover {
+    filter: brightness(1.05);
+}
+
+/* 卡片封面文章信息条 */
+.gallery-article-info {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 28px 16px 12px;
+    background: linear-gradient(180deg, transparent, rgba(15, 23, 42, 0.75));
+    color: #fff;
+    pointer-events: none;
+}
+
+.gallery-article-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gallery-article-summary {
+    font-size: 0.78rem;
+    opacity: 0.85;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .image-info {
     position: absolute;
     bottom: 16px;

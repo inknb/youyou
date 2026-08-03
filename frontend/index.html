@@ -38,7 +38,12 @@
             <!-- 左侧：图片 + 外链 -->
             <div class="left-column">
                 <div class="card gallery-card">
-                    <div id="anime-img" class="api-image"></div>
+                    <div id="anime-img" class="api-image" onclick="openGalleryArticle()">
+                        <div id="gallery-article-info" class="gallery-article-info" style="display: none;">
+                            <div class="gallery-article-title" id="gallery-article-title"></div>
+                            <div class="gallery-article-summary" id="gallery-article-summary"></div>
+                        </div>
+                    </div>
                     <div class="image-info">
                         <button class="refresh-btn" onclick="refreshImage()" title="换一张">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

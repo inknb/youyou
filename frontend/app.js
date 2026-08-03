@@ -22,12 +22,13 @@ function sanitizeUrl(url) {
     return /^https?:\/\//i.test(trimmed) ? trimmed : '#';
 }
 
-// 封面 URL 加唯一随机参数（随机图 API 每篇取不同图，同时绕过浏览器缓存）
-function bustCoverUrl(url) {
+// 封面 URL 基于文章 id 生成确定性参数：
+// 同一篇文章在所有位置 URL 一致（显示同一张图），不同文章 URL 不同（随机图 API 取不同图）
+function articleCoverUrl(url, id) {
     const clean = sanitizeUrl(url);
     if (!clean || clean === '#') return '';
     const sep = clean.includes('?') ? '&' : '?';
-    return `${clean}${sep}t=${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    return `${clean}${sep}t=article_${id}`;
 }
 
 // 带时间戳的图片 URL（正确处理已有 query 的情况）
@@ -311,7 +312,7 @@ async function loadBlog() {
 
         container.innerHTML = list.map(item => {
             const cover = item.cover
-                ? `<div class="blog-card-cover"><img src="${escapeHtml(bustCoverUrl(item.cover))}" alt="${escapeHtml(item.title)}" loading="lazy" onerror="this.parentElement.classList.add('broken')"></div>`
+                ? `<div class="blog-card-cover"><img src="${escapeHtml(articleCoverUrl(item.cover, item.id))}" alt="${escapeHtml(item.title)}" loading="lazy" onerror="this.parentElement.classList.add('broken')"></div>`
                 : '';
             return `
             <a class="blog-card" href="blog.html?id=${encodeURIComponent(item.id)}">
@@ -374,9 +375,72 @@ function startWallpaper() {
     loadWallpaper();
 }
 
-// 加载二次元图片
-function loadAnimeImage() {
+// 当前卡片展示的博客文章（点击跳转用）
+let galleryArticle = null;
+
+// 获取带封面的已发布博客列表
+async function fetchCoveredArticles() {
+    try {
+        const res = await fetch(`${API_BASE}/api/blog?page=1&pageSize=50`, { cache: 'no-store' });
+        const data = await res.json();
+        if (data.success) return (data.data.list || []).filter(a => a.cover);
+    } catch (e) { /* 忽略 */ }
+    return [];
+}
+
+// 用博客封面填充卡片，成功返回 true
+async function loadGalleryFromBlog() {
+    const covered = await fetchCoveredArticles();
+    if (covered.length === 0) return false;
+    const pick = covered[Math.floor(Math.random() * covered.length)];
+    setGalleryImage(pick);
+    return true;
+}
+
+function setGalleryImage(article) {
     const imgDiv = document.getElementById('anime-img');
+    const img = new Image();
+    img.onload = () => {
+        imgDiv.style.backgroundImage = `url(${articleCoverUrl(article.cover, article.id)})`;
+        imgDiv.classList.add('blog-cover');
+        imgDiv.title = `点击查看文章：${article.title}`;
+        galleryArticle = { id: article.id, title: article.title };
+
+        // 底部信息条：标题 + 摘要
+        const info = document.getElementById('gallery-article-info');
+        const titleEl = document.getElementById('gallery-article-title');
+        const summaryEl = document.getElementById('gallery-article-summary');
+        if (info && titleEl) {
+            titleEl.textContent = article.title;
+            summaryEl.textContent = article.summary || '点击阅读全文 →';
+            info.style.display = 'block';
+        }
+    };
+    img.onerror = () => { /* 保持当前图片 */ };
+    img.src = articleCoverUrl(article.cover, article.id);
+}
+
+// 隐藏文章信息条（回退动漫图模式时调用）
+function hideGalleryArticleInfo() {
+    const info = document.getElementById('gallery-article-info');
+    if (info) info.style.display = 'none';
+}
+
+// 点击卡片图片：跳转到当前封面对应的博客
+function openGalleryArticle() {
+    if (galleryArticle) {
+        window.location.href = `blog.html?id=${encodeURIComponent(galleryArticle.id)}`;
+    }
+}
+
+// 加载二次元图片（优先博客封面，无封面时回退动漫图 API）
+async function loadAnimeImage() {
+    const imgDiv = document.getElementById('anime-img');
+    if (!imgDiv) return;
+
+    // 优先：随机博客封面
+    if (await loadGalleryFromBlog()) return;
+
     const enabledApis = (config.apis?.anime || []).filter(api => api.enabled).sort((a, b) => a.priority - b.priority);
 
     if (enabledApis.length === 0) return;
@@ -387,6 +451,10 @@ function loadAnimeImage() {
 
     img.onload = () => {
         imgDiv.style.backgroundImage = `url(${withTimestamp(primaryApi.url)})`;
+        imgDiv.classList.remove('blog-cover');
+        imgDiv.title = '';
+        galleryArticle = null;
+        hideGalleryArticleInfo();
     };
 
     img.onerror = () => {
@@ -394,6 +462,10 @@ function loadAnimeImage() {
         if (enabledApis.length > 1) {
             const backupApi = enabledApis[1];
             imgDiv.style.backgroundImage = `url(${withTimestamp(backupApi.url)})`;
+            imgDiv.classList.remove('blog-cover');
+            imgDiv.title = '';
+            galleryArticle = null;
+            hideGalleryArticleInfo();
         }
     };
 
@@ -482,7 +554,7 @@ async function loadWeather() {
 
             weatherBox.innerHTML = `
                 <span style="font-size: 1.2rem;">${icon}</span>
-                <span>${data.weather} ${data.temp}°C${data.city ? ' · ' + escapeHtml(data.city) : ''}</span>
+                <span>${data.weather} ${data.temp}°C</span>
             `;
         } else {
             weatherBox.innerHTML = '<span style="font-size: 1.2rem;">☀</span><span>获取失败</span>';
@@ -553,9 +625,25 @@ function updateStats() {
     document.getElementById('activity-count').textContent = activities;
 }
 
-// 刷新二次元图片
-function refreshImage() {
+// 刷新二次元图片（优先随机换一篇博客封面，无封面时回退动漫图 API）
+async function refreshImage() {
     const imgDiv = document.getElementById('anime-img');
+
+    // 已有封面文章时：换到另一篇（排除当前篇）
+    if (galleryArticle) {
+        const covered = await fetchCoveredArticles();
+        const others = covered.filter(a => String(a.id) !== String(galleryArticle.id));
+        const pool = others.length > 0 ? others : covered;
+        if (pool.length > 0) {
+            const pick = pool[Math.floor(Math.random() * pool.length)];
+            setGalleryImage(pick);
+            return;
+        }
+    }
+
+    // 当前不是封面：尝试换成博客封面
+    if (await loadGalleryFromBlog()) return;
+
     const enabledApis = (config.apis?.anime || []).filter(api => api.enabled).sort((a, b) => a.priority - b.priority);
 
     if (enabledApis.length === 0) return;
@@ -569,6 +657,10 @@ function refreshImage() {
     const img = new Image();
     img.onload = () => {
         imgDiv.style.backgroundImage = `url(${withTimestamp(randomApi.url)})`;
+        imgDiv.classList.remove('blog-cover');
+        imgDiv.title = '';
+        galleryArticle = null;
+        hideGalleryArticleInfo();
         imgDiv.style.opacity = '1';
     };
     img.onerror = () => {
