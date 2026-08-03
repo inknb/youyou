@@ -22,6 +22,14 @@ function sanitizeUrl(url) {
     return /^https?:\/\//i.test(trimmed) ? trimmed : '#';
 }
 
+// 封面 URL 加唯一随机参数（随机图 API 每篇取不同图，同时绕过浏览器缓存）
+function bustCoverUrl(url) {
+    const clean = sanitizeUrl(url);
+    if (!clean || clean === '#') return '';
+    const sep = clean.includes('?') ? '&' : '?';
+    return `${clean}${sep}t=${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 // 带时间戳的图片 URL（正确处理已有 query 的情况）
 function withTimestamp(url) {
     const sep = url.includes('?') ? '&' : '?';
@@ -303,7 +311,7 @@ async function loadBlog() {
 
         container.innerHTML = list.map(item => {
             const cover = item.cover
-                ? `<div class="blog-card-cover"><img src="${escapeHtml(sanitizeUrl(item.cover))}" alt="${escapeHtml(item.title)}" loading="lazy" onerror="this.parentElement.classList.add('broken')"></div>`
+                ? `<div class="blog-card-cover"><img src="${escapeHtml(bustCoverUrl(item.cover))}" alt="${escapeHtml(item.title)}" loading="lazy" onerror="this.parentElement.classList.add('broken')"></div>`
                 : '';
             return `
             <a class="blog-card" href="blog.html?id=${encodeURIComponent(item.id)}">

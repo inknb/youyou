@@ -78,7 +78,7 @@ async function loadArticleList() {
 }
 
 function articleCard(article) {
-    const cover = article.cover ? `<div class="blog-card-cover"><img src="${escapeHtml(sanitizeUrl(article.cover))}" alt="${escapeHtml(article.title)}" loading="lazy" onerror="this.parentElement.classList.add('broken')"></div>` : '';
+    const cover = article.cover ? `<div class="blog-card-cover"><img src="${escapeHtml(bustCoverUrl(article.cover))}" alt="${escapeHtml(article.title)}" loading="lazy" onerror="this.parentElement.classList.add('broken')"></div>` : '';
     return `
         <a class="blog-card" href="blog.html?id=${encodeURIComponent(article.id)}">
             ${cover}
@@ -98,6 +98,14 @@ function sanitizeUrl(url) {
     if (typeof url !== 'string') return '';
     const trimmed = url.trim();
     return /^https?:\/\//i.test(trimmed) ? trimmed : '';
+}
+
+// 封面 URL 加唯一随机参数（随机图 API 每篇取不同图，同时绕过浏览器缓存）
+function bustCoverUrl(url) {
+    const clean = sanitizeUrl(url);
+    if (!clean) return '';
+    const sep = clean.includes('?') ? '&' : '?';
+    return `${clean}${sep}t=${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function updateLoadMore(show = true) {
