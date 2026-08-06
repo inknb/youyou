@@ -100,9 +100,23 @@ function sanitizeUrl(url) {
     return /^https?:\/\//i.test(trimmed) ? trimmed : '';
 }
 
+// 第三方图源体积优化：yppp 原图可能 5MB+，w 参数可缩至 1/6
+// 注意：必须与 app.js 的 optimizeImageUrl 保持同步
+function optimizeImageUrl(url) {
+    if (typeof url !== 'string') return url;
+    try {
+        const u = new URL(url);
+        if (u.hostname.endsWith('yppp.net')) {
+            u.searchParams.set('w', '1080');
+            return u.toString();
+        }
+    } catch (e) { /* 非法 URL 原样返回 */ }
+    return url;
+}
+
 // 封面 URL 基于文章 id 生成确定性参数（与首页卡片一致，同一篇显示同一张图）
 function articleCoverUrl(url, id) {
-    const clean = sanitizeUrl(url);
+    const clean = optimizeImageUrl(sanitizeUrl(url));
     if (!clean) return '';
     const sep = clean.includes('?') ? '&' : '?';
     return `${clean}${sep}t=article_${id}`;

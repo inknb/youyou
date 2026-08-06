@@ -399,10 +399,12 @@ function removeErrorBanner() {
 
 // 渲染所有内容
 function renderAll() {
+    // 同步随机一言列表（仅配置加载时；本地编辑期间不被覆盖）
+    hitokotoSentences = Array.isArray(configData?.site?.hitokotoList) ? [...configData.site.hitokotoList] : [];
     renderDashboard();
     renderSiteForm();
     renderApis();
-    renderHitokotoApis();
+    renderHitokotoList();
     renderTags();
     renderLinks();
     renderActivities();
@@ -969,123 +971,105 @@ async function deleteApi(index) {
     }
 }
 
-// ========== 每日一言 API 管理 ==========
-function renderHitokotoApis() {
-    if (!configData || !configData.apis || !configData.apis.hitokoto) return;
-    
-    const tbody = document.getElementById('hitokoto-api-table-body');
-    if (!tbody) return;
-    
-    tbody.innerHTML = configData.apis.hitokoto.map((api, index) => `
-        <tr>
-            <td>${escapeHtml(api.name)}</td>
-            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(api.url)}</td>
-            <td>${api.priority}</td>
-            <td>
-                <span style="padding: 4px 12px; border-radius: 100px; font-size: 0.8rem; ${api.enabled ? 'background: #dcfce7; color: #166534;' : 'background: #fee2e2; color: #991b1b;'}">
-                    ${api.enabled ? '启用' : '禁用'}
-                </span>
-            </td>
-            <td>
-                <button class="btn btn-sm ${api.enabled ? 'btn-danger' : 'btn-success'}" onclick="toggleHitokotoApi(${index})" style="margin-right: 8px;">
-                    ${api.enabled ? '禁用' : '启用'}
-                </button>
-                <button class="btn btn-sm btn-danger" onclick="deleteHitokotoApi(${index})">删除</button>
-            </td>
-        </tr>
+// ========== 随机一言（多句列表，刷新随机取一句） ==========
+let hitokotoSentences = [];
+let hitokotoEditIndex = -1;
+
+function renderHitokotoList() {
+    const listEl = document.getElementById('hitokoto-list');
+    if (!listEl) return;
+
+    if (hitokotoSentences.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center;color:var(--text-sub);padding:16px;">暂无句子，添加几句吧</div>';
+        return;
+    }
+
+    listEl.innerHTML = hitokotoSentences.map((sentence, index) => `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;background:#f8fafc;border-radius:8px;font-size:0.9rem;">
+            <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(sentence)}">${escapeHtml(sentence)}</span>
+            <div style="flex-shrink:0;display:flex;gap:8px;">
+                <button class="btn btn-sm" onclick="editHitokotoSentence(${index})" style="background:#e0e7ff;color:var(--primary-blue);">编辑</button>
+                <button class="btn btn-sm btn-danger" onclick="removeHitokotoSentence(${index})">删除</button>
+            </div>
+        </div>
     `).join('');
 }
 
-function openHitokotoApiModal() {
-    document.getElementById('hitokoto-api-modal').classList.add('show');
+function editHitokotoSentence(index) {
+    const input = document.getElementById('hitokoto-input');
+    if (!input) return;
+    hitokotoEditIndex = index;
+    input.value = hitokotoSentences[index] || '';
+    input.focus();
+    const btn = document.getElementById('hitokoto-add-btn');
+    if (btn) btn.textContent = '更新';
+    showToast('编辑中：修改后点击「更新」', 'success');
 }
 
-function closeHitokotoApiModal() {
-    document.getElementById('hitokoto-api-modal').classList.remove('show');
-    document.getElementById('hitokoto-api-form').reset();
-}
+function addHitokotoSentence() {
+    const input = document.getElementById('hitokoto-input');
+    const text = input.value.trim();
 
-if (document.getElementById('hitokoto-api-form')) {
-    document.getElementById('hitokoto-api-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        if (!configData) return;
-        const formData = new FormData(e.target);
-        const newApi = {
-            name: formData.get('name'),
-            url: formData.get('url'),
-            priority: parseInt(formData.get('priority')),
-            enabled: true
-        };
-
-        if (!configData.apis.hitokoto) {
-            configData.apis.hitokoto = [];
+    // 编辑模式
+    if (hitokotoEditIndex >= 0) {
+        if (!text) {
+            // 清空输入框 = 取消编辑
+            hitokotoEditIndex = -1;
+            const btn = document.getElementById('hitokoto-add-btn');
+            if (btn) btn.textContent = '添加';
+            return;
         }
-        configData.apis.hitokoto.push(newApi);
+        hitokotoSentences[hitokotoEditIndex] = text;
+        hitokotoEditIndex = -1;
+        const btn = document.getElementById('hitokoto-add-btn');
+        if (btn) btn.textContent = '添加';
+        input.value = '';
+        renderHitokotoList();
+        showToast('句子已更新', 'success');
+        return;
+    }
 
+    // 新增模式
+    if (!text) {
+        showToast('请输入句子内容', 'error');
+        return;
+    }
+    hitokotoSentences.push(text);
+    input.value = '';
+    renderHitokotoList();
+}
+
+function removeHitokotoSentence(index) {
+    hitokotoSentences.splice(index, 1);
+    if (hitokotoEditIndex === index) hitokotoEditIndex = -1;
+    renderHitokotoList();
+}
+
+if (document.getElementById('hitokoto-save')) {
+    document.getElementById('hitokoto-save').addEventListener('click', async () => {
+        const list = hitokotoSentences.filter(s => s && String(s).trim());
         try {
-            const { data: result } = await authFetch(`${API_BASE}/api/config/apis`, {
+            const { data: result } = await authFetch(`${API_BASE}/api/config/site`, {
                 method: 'POST',
-                body: JSON.stringify({ hitokoto: configData.apis.hitokoto })
+                body: JSON.stringify({ hitokotoList: list })
             });
             if (result.success) {
-                showToast('API 已添加');
-                closeHitokotoApiModal();
+                showToast('随机一言已保存');
                 await loadConfig();
             } else {
-                showToast(result.message || '添加失败', 'error');
-                await resyncConfig();
+                showToast(result.message || '保存失败', 'error');
             }
         } catch (err) {
-            showToast('添加失败', 'error');
-            await resyncConfig();
+            showToast('保存失败', 'error');
         }
     });
-}
 
-async function toggleHitokotoApi(index) {
-    if (!configData?.apis?.hitokoto?.[index]) return;
-    configData.apis.hitokoto[index].enabled = !configData.apis.hitokoto[index].enabled;
-
-    try {
-        const { data: result } = await authFetch(`${API_BASE}/api/config/apis`, {
-            method: 'POST',
-            body: JSON.stringify({ hitokoto: configData.apis.hitokoto })
-        });
-        if (result.success) {
-            showToast('API 状态已更新');
-            await loadConfig();
-        } else {
-            showToast(result.message || '操作失败', 'error');
-            await resyncConfig();
+    document.getElementById('hitokoto-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addHitokotoSentence();
         }
-    } catch (err) {
-        showToast('操作失败', 'error');
-        await resyncConfig();
-    }
-}
-
-async function deleteHitokotoApi(index) {
-    if (!confirm('确定删除这个 API？')) return;
-    if (!configData?.apis?.hitokoto) return;
-
-    configData.apis.hitokoto.splice(index, 1);
-
-    try {
-        const { data: result } = await authFetch(`${API_BASE}/api/config/apis`, {
-            method: 'POST',
-            body: JSON.stringify({ hitokoto: configData.apis.hitokoto })
-        });
-        if (result.success) {
-            showToast('API 已删除');
-            await loadConfig();
-        } else {
-            showToast(result.message || '删除失败', 'error');
-            await resyncConfig();
-        }
-    } catch (err) {
-        showToast('删除失败', 'error');
-        await resyncConfig();
-    }
+    });
 }
 
 // ========== 标签管理 ==========

@@ -886,7 +886,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
                     <li class="nav-item">
                         <a class="nav-link" data-section="apis">
                             
-                            <span>API 管理</span>
+                            <span>网站配置</span>
                         </a>
                     </li>
                     <li class="nav-item">
@@ -999,11 +999,11 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
                 </div>
             </section>
 
-            <!-- API 管理 -->
+            <!-- 网站配置 -->
             <section id="apis" class="section">
                 <div class="page-header">
-                    <h1 class="page-title">API 管理</h1>
-                    <p class="page-desc">配置各种 API 接口</p>
+                    <h1 class="page-title">网站配置</h1>
+                    <p class="page-desc">配置网站接口与内容</p>
                 </div>
                 <div class="card">
                     <div class="card-header">
@@ -1027,23 +1027,23 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
                 </div>
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">每日一言 API</h3>
-                        <button class="btn btn-success btn-sm" onclick="openHitokotoApiModal()">+ 添加 API</button>
+                        <h3 class="card-title">随机一言</h3>
                     </div>
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>名称</th>
-                                <th>地址</th>
-                                <th>优先级</th>
-                                <th>状态</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="hitokoto-api-table-body">
-                            <!-- 动态加载 -->
-                        </tbody>
-                    </table>
+                    <div id="hitokoto-list" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+                        <!-- 动态加载 -->
+                    </div>
+                    <div class="form-row" style="align-items: flex-end;">
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <input type="text" class="form-input" id="hitokoto-input" placeholder="输入一句话，回车或点击添加" maxlength="200">
+                        </div>
+                        <div class="form-group" style="flex: 0; margin-bottom: 0;">
+                            <button type="button" class="btn btn-success" id="hitokoto-add-btn" onclick="addHitokotoSentence()">添加</button>
+                        </div>
+                    </div>
+                    <small style="color: var(--text-sub); display: block; margin-top: 8px; font-size: 0.8rem;">首页每次刷新从这些句子中随机取一句；留空则显示个性签名</small>
+                    <div style="margin-top: 12px;">
+                        <button type="button" class="btn btn-primary" id="hitokoto-save">保存</button>
+                    </div>
                 </div>
                 <div class="card">
                     <div class="card-header">
@@ -1326,35 +1326,6 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn" onclick="closeApiModal()">取消</button>
-                    <button type="submit" class="btn btn-primary">添加</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- 每日一言 API 弹窗 -->
-    <div class="modal" id="hitokoto-api-modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">添加每日一言 API</h3>
-            </div>
-            <form id="hitokoto-api-form">
-                <div class="form-group">
-                    <label class="form-label">API 名称</label>
-                    <input type="text" class="form-input" name="name" placeholder="如：Hitokoto" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">API 地址</label>
-                    <input type="url" class="form-input" name="url" placeholder="https://..." required>
-                    <small style="color: var(--text-sub); display: block; margin-top: 4px; font-size: 0.8rem;">返回纯文本格式的API地址</small>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">优先级</label>
-                    <input type="number" class="form-input" name="priority" value="1" min="1" required>
-                    <small style="color: var(--text-sub); display: block; margin-top: 4px; font-size: 0.8rem;">数字越小优先级越高</small>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn" onclick="closeHitokotoApiModal()">取消</button>
                     <button type="submit" class="btn btn-primary">添加</button>
                 </div>
             </form>

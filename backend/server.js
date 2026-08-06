@@ -481,9 +481,28 @@ function isPublicIPv4(ip) {
 const ipCityCache = new Map();
 const IP_CITY_TTL = 24 * 60 * 60 * 1000;
 
-// 天气结果缓存（10 分钟 TTL，减少外部 API 依赖延迟）
+// 天气结果缓存（10 分钟 TTL，减少外部 API 依赖延迟；容量上限 200 防止内存无限增长）
 const weatherResultCache = new Map();
 const WEATHER_RESULT_TTL = 10 * 60 * 1000;
+const WEATHER_CACHE_MAX = 200;
+
+// 写入天气缓存：先淘汰过期项，仍超容量则删除最旧条目
+function setWeatherCache(key, data) {
+  const now = Date.now();
+  for (const [k, v] of weatherResultCache) {
+    if (now - v.at >= WEATHER_RESULT_TTL) weatherResultCache.delete(k);
+  }
+  if (weatherResultCache.size >= WEATHER_CACHE_MAX) {
+    const oldest = weatherResultCache.keys().next().value;
+    if (oldest !== undefined) weatherResultCache.delete(oldest);
+  }
+  weatherResultCache.set(key, { data, at: now });
+}
+
+// 手动 city 参数白名单（中文/英文城市名，防任意字符串撑爆缓存）
+function isValidCity(city) {
+  return typeof city === 'string' && city.length <= 50 && /^[\u4e00-\u9fa5a-zA-Z0-9·\- ]+$/.test(city);
+}
 
 async function locateCityByIp(ip) {
   if (!isPublicIPv4(ip)) return null;
@@ -522,6 +541,9 @@ app.get('/api/weather', async (req, res) => {
   let city = req.query.city || '';
 
   if (city) {
+    if (!isValidCity(city)) {
+      return res.status(400).json({ success: false, message: '非法的城市参数' });
+    }
     source = 'manual';
   } else {
     // 仅使用服务端获取的真实访问者 IP，不接受客户端指定（防止被滥用为代理）
@@ -578,7 +600,7 @@ app.get('/api/weather', async (req, res) => {
       source
     };
 
-    weatherResultCache.set(cacheKey, { data: standardizedData, at: Date.now() });
+    setWeatherCache(cacheKey, standardizedData);
     res.json({ success: true, data: standardizedData });
   } catch (err) {
     console.error('[天气 API] 错误:', err);
@@ -599,11 +621,16 @@ app.get('/', (req, res, next) => {
 });
 
 app.use(express.static(path.join(__dirname, '../frontend'), {
-  // 开发友好：每次重新验证，避免改资源后浏览器仍用旧缓存
+  // lib/ 下的第三方库几乎不变，长缓存（immutable）；其余资源每次重新验证
   etag: true,
   maxAge: 0,
-  setHeaders: (res) => {
-    res.set('Cache-Control', 'no-cache');
+  setHeaders: (res, filePath) => {
+    // lib/ 第三方库与 fonts/ 字体文件几乎不变，长缓存（immutable）；其余资源每次重新验证
+    if (filePath.includes(`${path.sep}lib${path.sep}`) || filePath.includes(`${path.sep}fonts${path.sep}`)) {
+      res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    } else {
+      res.set('Cache-Control', 'no-cache');
+    }
   }
 }));
 app.use('/admin', express.static(path.join(__dirname, '../admin')));

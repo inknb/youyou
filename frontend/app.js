@@ -122,46 +122,25 @@ function getGreeting() {
     return '晚安';
 }
 
-// 加载每日一言
+// 加载每日一言（后台配置多句，每次刷新随机取一句）
 async function loadHitokoto() {
     const subtitleEl = document.getElementById('site-subtitle');
-    
-    // 获取启用的 API 列表
-    const enabledApis = config.apis.hitokoto?.filter(api => api.enabled).sort((a, b) => a.priority - b.priority);
-    
-    if (!enabledApis || enabledApis.length === 0) {
-        subtitleEl.textContent = '探索简洁、逻辑与二次元的平衡点';
+    if (!subtitleEl) return;
+
+    // 优先：随机句子列表
+    const list = Array.isArray(config?.site?.hitokotoList)
+        ? config.site.hitokotoList.filter(s => s && String(s).trim())
+        : [];
+    if (list.length > 0) {
+        subtitleEl.textContent = list[Math.floor(Math.random() * list.length)];
         return;
     }
-    
-    // 尝试加载第一个 API
-    const primaryApi = enabledApis[0];
-    
-    try {
-        const res = await fetch(primaryApi.url);
-        if (res.ok) {
-            const text = await res.text();
-            subtitleEl.textContent = text.trim();
-        } else {
-            throw new Error('API 请求失败');
-        }
-    } catch (err) {
-        // 失败则尝试第二个
-        if (enabledApis.length > 1) {
-            try {
-                const res = await fetch(enabledApis[1].url);
-                if (res.ok) {
-                    const text = await res.text();
-                    subtitleEl.textContent = text.trim();
-                } else {
-                    throw new Error('备用 API 请求失败');
-                }
-            } catch (err2) {
-                subtitleEl.textContent = '探索简洁、逻辑与二次元的平衡点';
-            }
-        } else {
-            subtitleEl.textContent = '探索简洁、逻辑与二次元的平衡点';
-        }
+
+    // 回退：旧的单句配置 → 个性签名 → 默认文案
+    if (config?.site?.hitokotoText?.trim()) {
+        subtitleEl.textContent = config.site.hitokotoText.trim();
+    } else {
+        subtitleEl.textContent = config?.site?.signature?.trim() || config?.site?.subtitle || '探索简洁、逻辑与二次元的平衡点';
     }
 }
 
@@ -309,11 +288,9 @@ async function loadBlog() {
     if (!container) { blogLoading = false; return; }
 
     try {
-        const res = await fetch(`${API_BASE}/api/blog?page=1&pageSize=5`, { cache: 'no-store' });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.message || '加载失败');
-
-        const { list, total } = data.data;
+        // 与画廊共用同一份列表缓存（60s TTL + in-flight 去重），避免重复请求
+        const { list: allList, total } = await fetchBlogList();
+        const list = (allList || []).slice(0, 5);
 
         // 更新本站数据的博客文章统计
         const blogCountEl = document.getElementById('blog-count');
@@ -393,46 +370,91 @@ function startWallpaper() {
 // 当前卡片展示的博客文章（点击跳转用）
 let galleryArticle = null;
 
-// 获取带封面的已发布博客列表
-async function fetchCoveredArticles() {
+// 博客列表缓存（60s TTL + in-flight 去重）：首页博客区块与画廊共用，翻页拉全量
+let blogListCache = null;   // { list, total, at }
+let blogListPromise = null;
+
+async function fetchBlogList() {
+    if (blogListCache && Date.now() - blogListCache.at < 60000) {
+        return blogListCache;
+    }
+    if (blogListPromise) return blogListPromise;
+
+    blogListPromise = (async () => {
+        let list = [];
+        let total = 0;
+        let page = 1;
+        const PAGE_SIZE = 50;
+        try {
+            do {
+                const res = await fetch(`${API_BASE}/api/blog?page=${page}&pageSize=${PAGE_SIZE}`, { cache: 'no-store' });
+                const data = await res.json();
+                if (!data.success) break;
+                total = data.data.total || 0;
+                list = list.concat(data.data.list || []);
+                page++;
+            } while (list.length < total && page <= 20);
+        } catch (e) { /* 忽略 */ }
+        blogListCache = { list, total, at: Date.now() };
+        return blogListCache;
+    })();
+
     try {
-        const res = await fetch(`${API_BASE}/api/blog?page=1&pageSize=50`, { cache: 'no-store' });
-        const data = await res.json();
-        if (data.success) return (data.data.list || []).filter(a => a.cover);
-    } catch (e) { /* 忽略 */ }
-    return [];
+        return await blogListPromise;
+    } finally {
+        blogListPromise = null;
+    }
 }
 
-// 用博客封面填充卡片，成功返回 true
+// 获取带封面的已发布博客列表（复用 fetchBlogList 缓存）
+async function fetchCoveredArticles() {
+    const { list } = await fetchBlogList();
+    return (list || []).filter(a => a.cover);
+}
+
+// 用博客封面填充卡片：加载失败返回 false，让调用方回退动漫图 API
 async function loadGalleryFromBlog() {
     const covered = await fetchCoveredArticles();
     if (covered.length === 0) return false;
     const pick = covered[Math.floor(Math.random() * covered.length)];
-    setGalleryImage(pick);
-    return true;
+    return setGalleryImage(pick);
 }
 
+// 用博客封面填充卡片：加载成功 resolve(true)，失败/超时 resolve(false)
 function setGalleryImage(article) {
-    const imgDiv = document.getElementById('anime-img');
-    const img = new Image();
-    img.onload = () => {
-        imgDiv.style.backgroundImage = `url(${articleCoverUrl(article.cover, article.id)})`;
-        imgDiv.classList.add('blog-cover');
-        imgDiv.title = `点击查看文章：${article.title}`;
-        galleryArticle = { id: article.id, title: article.title };
+    return new Promise((resolve) => {
+        const imgDiv = document.getElementById('anime-img');
+        const img = new Image();
+        const timer = setTimeout(() => {
+            img.onload = null;
+            img.onerror = null;
+            resolve(false);
+        }, 10000);
 
-        // 底部信息条：标题 + 摘要
-        const info = document.getElementById('gallery-article-info');
-        const titleEl = document.getElementById('gallery-article-title');
-        const summaryEl = document.getElementById('gallery-article-summary');
-        if (info && titleEl) {
-            titleEl.textContent = article.title;
-            summaryEl.textContent = article.summary || '点击阅读全文 →';
-            info.style.display = 'block';
-        }
-    };
-    img.onerror = () => { /* 保持当前图片 */ };
-    img.src = articleCoverUrl(article.cover, article.id);
+        img.onload = () => {
+            clearTimeout(timer);
+            imgDiv.style.backgroundImage = `url(${articleCoverUrl(article.cover, article.id)})`;
+            imgDiv.classList.add('blog-cover');
+            imgDiv.title = `点击查看文章：${article.title}`;
+            galleryArticle = { id: article.id, title: article.title };
+
+            // 底部信息条：标题 + 摘要
+            const info = document.getElementById('gallery-article-info');
+            const titleEl = document.getElementById('gallery-article-title');
+            const summaryEl = document.getElementById('gallery-article-summary');
+            if (info && titleEl) {
+                titleEl.textContent = article.title;
+                summaryEl.textContent = article.summary || '点击阅读全文 →';
+                info.style.display = 'block';
+            }
+            resolve(true);
+        };
+        img.onerror = () => {
+            clearTimeout(timer);
+            resolve(false);
+        };
+        img.src = articleCoverUrl(article.cover, article.id);
+    });
 }
 
 // 隐藏文章信息条（回退动漫图模式时调用）
@@ -570,7 +592,7 @@ async function loadWeather() {
 
             weatherBox.innerHTML = `
                 <span style="display:inline-flex;align-items:center;">${icon}</span>
-                <span>${data.weather} ${data.temp}°C</span>
+                <span>${escapeHtml(data.weather)} ${escapeHtml(data.temp)}°C</span>
             `;
         } else {
             weatherBox.innerHTML = `<span style="display:inline-flex;align-items:center;">${sunnyIcon}</span><span>获取失败</span>`;
@@ -604,17 +626,19 @@ function getWeatherIcon(weather, code) {
         if (codeNum === 113) key = 'sunny';
         // 雷暴 (200, 386, 389, 392, 395)
         else if (codeNum === 200 || codeNum === 386 || codeNum === 389 || codeNum === 392 || codeNum === 395) key = 'thunder';
-        // 雪 (179, 182, 185, 227-236, 281-284, 317-338, 350-398)
+        // 雪 (179, 182, 185, 227-236, 281-284, 317-338, 350-352, 360-398)
         else if (codeNum === 179 || codeNum === 182 || codeNum === 185 ||
             (codeNum >= 227 && codeNum <= 236) ||
             (codeNum >= 281 && codeNum <= 284) ||
             (codeNum >= 317 && codeNum <= 338) ||
-            (codeNum >= 350 && codeNum <= 398)) key = 'snow';
-        // 雨 (176-353 其余)
-        else if (codeNum >= 176 && codeNum <= 353) key = 'rain';
+            (codeNum >= 350 && codeNum <= 352) ||
+            (codeNum >= 360 && codeNum <= 398)) key = 'snow';
+        // 雨 (176-353 其余，及 356-359 阵雨)
+        else if ((codeNum >= 176 && codeNum <= 353) || (codeNum >= 356 && codeNum <= 359)) key = 'rain';
         // 雾 (143, 248, 260)
         else if (codeNum === 143 || codeNum === 248 || codeNum === 260) key = 'fog';
-        // 多云/阴 (119-122)
+        // 多云 (116) / 阴 (119-122)
+        else if (codeNum === 116) key = 'partlyCloudy';
         else if (codeNum >= 119 && codeNum <= 122) key = 'cloudy';
     }
 
@@ -665,8 +689,8 @@ async function refreshImage() {
         const pool = others.length > 0 ? others : covered;
         if (pool.length > 0) {
             const pick = pool[Math.floor(Math.random() * pool.length)];
-            setGalleryImage(pick);
-            return;
+            // 换图失败（封面失效）则继续回退动漫图 API
+            if (await setGalleryImage(pick)) return;
         }
     }
 
