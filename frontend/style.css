@@ -80,62 +80,135 @@ body {
     padding: 40px 20px 60px;
 }
 
-/* 顶部信息栏 */
-.top-bar {
+/* 音乐播放器（底部居中悬浮） */
+.music-player {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 80;
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    background: rgba(255, 255, 255, 0.88);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border-radius: 50px;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.1);
+    max-width: calc(100vw - 32px);
+}
+
+.music-cover {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #e2e8f0;
+}
+
+.music-info {
+    min-width: 0;
+    max-width: 200px;
+}
+
+.music-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-main);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.music-artist {
+    font-size: 0.75rem;
+    color: var(--text-sub);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.music-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.music-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 50%;
+    background: #eff6ff;
+    color: var(--accent-blue, #42a5f5);
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.music-btn:hover {
+    background: #dbeafe;
+}
+
+.music-toggle {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, #02539a, #3b82f6);
+    color: #fff;
+}
+
+.music-toggle:hover {
+    background: linear-gradient(135deg, #02539a, #2563eb);
+}
+
+@media (max-width: 640px) {
+    .music-player {
+        bottom: 12px;
+        padding: 8px 12px;
+        gap: 8px;
+    }
+
+    .music-info {
+        max-width: 110px;
+    }
+}
+
+/* 顶部信息栏（grid 三列，左列与天气等宽，标题绝对居中） */
+.top-bar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 16px;
     margin-bottom: 32px;
     padding: 0 4px;
 }
 
 .site-title-box {
-    flex: 1;
+    grid-column: 2;
     display: flex;
     justify-content: center;
     align-items: center;
+    min-height: 56px;
 }
 
 .site-title {
-    font-size: 2rem;
+    font-size: 2.5rem;
     font-weight: 800;
     color: var(--accent-blue);
-    -webkit-text-stroke: 0.5px #e2e8f0;
     letter-spacing: 3px;
     font-family: "Hiragino Sans GB", "Microsoft YaHei UI", "PingFang SC", "STHeiti", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     white-space: nowrap;
 }
 
-.datetime-box {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.greeting {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--accent-blue-light);
-    margin-bottom: 4px;
-}
-
-.time {
-    font-size: 3.5rem;
-    font-weight: 800;
-    color: var(--accent-blue);
-    -webkit-text-stroke: 0.5px #e2e8f0;
-    letter-spacing: -2px;
-    line-height: 1;
-}
-
-.date {
-    font-size: 0.95rem;
-    color: var(--accent-blue-light);
-    font-weight: 700;
-    margin-top: 4px;
-}
-
 .weather-box {
+    grid-column: 3;
+    justify-self: center;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -757,33 +830,23 @@ body {
     }
 
     .top-bar {
-        flex-direction: column;
+        grid-template-columns: 1fr;
         gap: 12px;
-        align-items: center;
-    }
-
-    .datetime-box {
-        text-align: center;
+        justify-items: center;
     }
 
     .site-title-box {
+        grid-column: 1;
         order: -1;
     }
 
     .site-title {
-        font-size: 1.3rem;
-    }
-
-    .time {
-        font-size: 2.8rem;
-    }
-
-    .greeting {
-        font-size: 1rem;
+        font-size: 1.7rem;
     }
 
     .weather-box {
-        align-self: stretch;
+        grid-column: 1;
+        width: 100%;
         justify-content: center;
     }
 

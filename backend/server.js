@@ -611,6 +611,54 @@ app.get('/api/weather', async (req, res) => {
   }
 });
 
+// ========== 网易云音乐歌单代理 ==========
+const musicCache = new Map();
+const MUSIC_CACHE_TTL = 10 * 60 * 1000;
+
+app.get('/api/music/playlist', async (req, res) => {
+  const id = String(req.query.id || '').trim();
+  if (!/^\d{1,20}$/.test(id)) {
+    return res.status(400).json({ success: false, message: '非法的歌单 ID' });
+  }
+
+  const cached = musicCache.get(id);
+  if (cached && Date.now() - cached.at < MUSIC_CACHE_TTL) {
+    return res.json({ success: true, data: cached.data });
+  }
+
+  try {
+    const fetch = (await import('node-fetch')).default;
+    const response = await fetch(`https://music.163.com/api/playlist/detail?id=${id}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+        'Referer': 'https://music.163.com/'
+      },
+      timeout: 15000
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const json = await response.json();
+    if (json.code !== 200 || !json.result) throw new Error('歌单不存在或获取失败');
+
+    const data = {
+      id: json.result.id,
+      name: json.result.name,
+      cover: json.result.coverImgUrl || '',
+      tracks: (json.result.tracks || []).map(t => ({
+        id: t.id,
+        name: t.name,
+        artist: (t.artists || []).map(a => a.name).join(' / '),
+        duration: t.duration || 0
+      }))
+    };
+    musicCache.set(id, { data, at: Date.now() });
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('[音乐] 获取歌单失败:', err.message);
+    res.status(500).json({ success: false, message: '获取歌单失败，请检查歌单 ID' });
+  }
+});
+
 // ========== 静态文件服务（放在 API 路由之后）==========
 // 安装页面重定向（未安装时）
 app.get('/', (req, res, next) => {

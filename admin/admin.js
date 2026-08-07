@@ -404,6 +404,7 @@ function renderAll() {
     renderDashboard();
     renderSiteForm();
     renderApis();
+    renderMusicConfig();
     renderHitokotoList();
     renderTags();
     renderLinks();
@@ -969,6 +970,40 @@ async function deleteApi(index) {
         showToast('删除失败', 'error');
         await resyncConfig();
     }
+}
+
+// ========== 音乐播放器配置 ==========
+function renderMusicConfig() {
+    if (!configData) return;
+    const form = document.getElementById('music-form');
+    if (!form) return;
+    const site = configData.site || {};
+    form.elements.musicPlaylistId.value = site.musicPlaylistId || '';
+    form.elements.musicEnabled.checked = site.musicEnabled !== false;
+}
+
+if (document.getElementById('music-form')) {
+    document.getElementById('music-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const musicPlaylistId = String(formData.get('musicPlaylistId') || '').trim();
+        const musicEnabled = formData.get('musicEnabled') === 'on';
+
+        try {
+            const { data: result } = await authFetch(`${API_BASE}/api/config/site`, {
+                method: 'POST',
+                body: JSON.stringify({ musicPlaylistId, musicEnabled })
+            });
+            if (result.success) {
+                showToast('播放器配置已保存');
+                await loadConfig();
+            } else {
+                showToast(result.message || '保存失败', 'error');
+            }
+        } catch (err) {
+            showToast('保存失败', 'error');
+        }
+    });
 }
 
 // ========== 随机一言（多句列表，刷新随机取一句） ==========

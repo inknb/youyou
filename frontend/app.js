@@ -1,4 +1,4 @@
-// API 基础地址（同源部署，直接使用当前源）
+﻿// API 基础地址（同源部署，直接使用当前源）
 const API_BASE = window.location.origin;
 
 // 全局配置
@@ -143,19 +143,108 @@ async function loadHitokoto() {
         subtitleEl.textContent = config?.site?.signature?.trim() || config?.site?.subtitle || '探索简洁、逻辑与二次元的平衡点';
     }
 }
+// ========== 网易云音乐播放器 ==========
+let musicTracks = [];
+let musicIndex = 0;
+let musicReady = false;
+let musicPlayerInitialized = false;
+
+function setMusicPlayIcon(playing) {
+    const playIcon = document.getElementById('music-play-icon');
+    const pauseIcon = document.getElementById('music-pause-icon');
+    if (playIcon) playIcon.style.display = playing ? 'none' : 'block';
+    if (pauseIcon) pauseIcon.style.display = playing ? 'block' : 'none';
+}
+
+function loadMusicTrack(index, autoplay) {
+    if (!musicTracks[index]) return;
+    musicIndex = index;
+    const track = musicTracks[index];
+    document.getElementById('music-name').textContent = track.name;
+    document.getElementById('music-artist').textContent = track.artist || '未知歌手';
+
+    const audio = document.getElementById('music-audio');
+    audio.src = `https://music.163.com/song/media/outer/url?id=${track.id}.mp3`;
+    if (autoplay) {
+        audio.play().then(() => setMusicPlayIcon(true)).catch(() => setMusicPlayIcon(false));
+    }
+}
+
+async function initMusicPlayer() {
+    // 只初始化一次：标签页切换回来（visibilitychange → initPage）不重载音乐
+    if (musicPlayerInitialized) return;
+    musicPlayerInitialized = true;
+
+    const player = document.getElementById('music-player');
+    if (!player) return;
+
+    const site = config?.site || {};
+    if (!site.musicEnabled) return;
+    const playlistId = String(site.musicPlaylistId || '').trim();
+    if (!/^\d{1,20}$/.test(playlistId)) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/api/music/playlist?id=${playlistId}`, { cache: 'no-store' });
+        const data = await res.json();
+        if (!data.success || !data.data?.tracks?.length) {
+            console.error('音乐歌单加载失败:', data.message);
+            return;
+        }
+        musicTracks = data.data.tracks;
+        const cover = document.getElementById('music-cover');
+        if (cover && data.data.cover) cover.src = data.data.cover;
+
+        player.style.display = 'flex';
+        musicReady = true;
+        // 随机起始歌曲
+        const startIndex = Math.floor(Math.random() * musicTracks.length);
+        // 尝试自动播放：被浏览器拦截时静默降级，等待用户点击
+        loadMusicTrack(startIndex, true);
+
+        // 事件绑定（只绑定一次）
+        if (!player.dataset.bound) {
+            player.dataset.bound = '1';
+            const audio = document.getElementById('music-audio');
+            const toggle = document.getElementById('music-toggle');
+            const prev = document.getElementById('music-prev');
+            const next = document.getElementById('music-next');
+
+            toggle.addEventListener('click', () => {
+                if (!musicReady) return;
+                if (audio.paused) {
+                    audio.play().then(() => setMusicPlayIcon(true)).catch(() => {});
+                } else {
+                    audio.pause();
+                    setMusicPlayIcon(false);
+                }
+            });
+            prev.addEventListener('click', () => {
+                if (!musicReady) return;
+                loadMusicTrack((musicIndex - 1 + musicTracks.length) % musicTracks.length, true);
+            });
+            next.addEventListener('click', () => {
+                if (!musicReady) return;
+                loadMusicTrack((musicIndex + 1) % musicTracks.length, true);
+            });
+            audio.addEventListener('ended', () => {
+                loadMusicTrack((musicIndex + 1) % musicTracks.length, true);
+            });
+            audio.addEventListener('play', () => setMusicPlayIcon(true));
+            audio.addEventListener('pause', () => setMusicPlayIcon(false));
+            audio.addEventListener('error', () => setMusicPlayIcon(false));
+        }
+    } catch (err) {
+        console.error('音乐播放器初始化失败:', err);
+    }
+}
 
 // 初始化页面
 async function initPage() {
-    // 设置问候语
-    const greeting = getGreeting();
-    document.title = greeting;
-    document.getElementById('greeting').textContent = greeting;
-
     // 设置网站标题
+    const title = config?.site?.title || '悠悠の小站';
+    document.title = `${title} · 悠悠の小站`;
     const siteTitle = document.getElementById('site-title');
-    if (siteTitle && config?.site?.title) {
-        siteTitle.textContent = config.site.title;
-    }
+    if (siteTitle) siteTitle.textContent = title;
 
     // 设置网站图标
     if (config?.site?.favicon) {
@@ -165,9 +254,8 @@ async function initPage() {
     // 加载每日一言
     loadHitokoto();
 
-    // 启动时间更新（只启动一次，避免重复 initPage 叠加定时器）
-    updateDateTime();
-    startClockOnce();
+    // 初始化音乐播放器
+    initMusicPlayer();
 
     // 加载天气（使用 IP 定位）
     loadWeather();
@@ -547,29 +635,6 @@ document.addEventListener('visibilitychange', () => {
         });
     }
 });
-
-// 更新时间和日期
-let clockTimer = null;
-function startClockOnce() {
-    if (clockTimer) return;
-    clockTimer = setInterval(updateDateTime, 1000);
-}
-
-function updateDateTime() {
-    const now = new Date();
-    
-    // 时间
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    document.getElementById('current-time').textContent = `${hours}:${minutes}`;
-    
-    // 日期
-    const month = now.getMonth() + 1;
-    const date = now.getDate();
-    const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-    const weekday = weekdays[now.getDay()];
-    document.getElementById('current-date').textContent = `${month}月${date}日 ${weekday}`;
-}
 
 // 加载天气
 async function loadWeather() {

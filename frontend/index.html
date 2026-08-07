@@ -15,11 +15,6 @@
     <main class="container">
         <!-- 顶部信息栏 -->
         <div class="top-bar">
-            <div class="datetime-box">
-                <div class="greeting" id="greeting">你好</div>
-                <div class="time" id="current-time">00:00</div>
-                <div class="date" id="current-date">1月1日 星期一</div>
-            </div>
             <div class="site-title-box">
                 <h1 class="site-title" id="site-title">悠悠の小站</h1>
             </div>
@@ -125,6 +120,28 @@
     <!-- Sakana 挂件 -->
     <div id="sakana-widget-container"></div>
     <div id="sakana-widget-left"></div>
+
+    <!-- 音乐播放器（底部悬浮） -->
+    <div id="music-player" class="music-player" style="display: none;">
+        <img id="music-cover" class="music-cover" src="" alt="">
+        <div class="music-info">
+            <div id="music-name" class="music-name">未播放</div>
+            <div id="music-artist" class="music-artist"></div>
+        </div>
+        <div class="music-controls">
+            <button id="music-prev" class="music-btn" title="上一首">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+            </button>
+            <button id="music-toggle" class="music-btn music-toggle" title="播放/暂停">
+                <svg id="music-play-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                <svg id="music-pause-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="display: none;"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+            </button>
+            <button id="music-next" class="music-btn" title="下一首">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>
+            </button>
+        </div>
+        <audio id="music-audio"></audio>
+    </div>
 
     <script src="lib/sakana.min.js"></script>
     <script src="app.js?v=2"></script>

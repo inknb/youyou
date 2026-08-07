@@ -1027,6 +1027,25 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
                 </div>
                 <div class="card">
                     <div class="card-header">
+                        <h3 class="card-title">音乐播放器</h3>
+                    </div>
+                    <form id="music-form" style="padding: 0;">
+                        <div class="form-group">
+                            <label class="form-label">网易云歌单 ID</label>
+                            <input type="text" class="form-input" name="musicPlaylistId" id="music-playlist-id" placeholder="如：3778678" maxlength="20">
+                            <small style="color: var(--text-sub); display: block; margin-top: 4px; font-size: 0.8rem;">打开网易云歌单页面，复制 URL 中 playlist?id= 后面的数字</small>
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" name="musicEnabled" id="music-enabled" checked>
+                                <span>启用播放器（前台底部悬浮）</span>
+                            </label>
+                        </div>
+                        <button type="submit" class="btn btn-primary">保存</button>
+                    </form>
+                </div>
+                <div class="card">
+                    <div class="card-header">
                         <h3 class="card-title">随机一言</h3>
                     </div>
                     <div id="hitokoto-list" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
