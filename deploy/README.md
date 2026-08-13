@@ -6,25 +6,27 @@
 
 ### 前提
 
-- 服务器安装 Python 3.7+（宝塔软件商店 → Python项目管理器）
-- 准备网易云网页版登录 Cookie（登录 music.163.com → F12 → Network → 复制任意请求的 Cookie 值）
+- 服务器安装 Python 3.7+（Ubuntu 24.04 自带 3.12）
+- 准备网易云网页版登录 Cookie（登录 music.163.com → F12 → Network → 复制任意请求的 Cookie 值，黑胶会员最佳）
 
 ### 部署步骤
 
 ```bash
 cd /www/wwwroot/youyou-homepage/netease_url
-# 1. 安装依赖
-pip3 install -r requirements.txt
-# 2. 写入你的 Cookie（cookie.txt 不入库，需手动放置；注意 Cookie 过期后需更新）
+# 1. 安装 pip（Ubuntu 24.04 默认无 pip，需先安装）
+sudo apt-get install -y python3-pip
+# 2. 安装依赖（PEP 668 环境需 --break-system-packages；无 python3-venv 时不要用 venv）
+python3 -m pip install --break-system-packages -r requirements.txt
+# 3. 写入你的 Cookie（cookie.txt 不入库，需手动放置；注意 Cookie 过期后需更新）
 vi cookie.txt
-# 3. 确认配置（默认音质 exhigh；如需无损改为 lossless 并编辑 .env）
+# 4. 确认配置（默认音质 exhigh；如需无损改为 lossless 并编辑 .env）
 ```
 
-启动（宝塔 Python项目管理器 或 systemd 均可，命令示例）：
+启动（`setsid` 脱离终端，重定向输入输出）：
 
 ```bash
 cd /www/wwwroot/youyou-homepage/netease_url
-nohup python3 main.py > music_api.log 2>&1 &
+setsid bash -c 'nohup python3 main.py > music_api.log 2>&1 < /dev/null &'
 ```
 
 服务只监听 `127.0.0.1:5000`，仅本机博客后端调用，不对外暴露。
@@ -36,10 +38,12 @@ curl http://127.0.0.1:5000/health          # cookie_status 应为 valid
 curl -X POST http://127.0.0.1:5000/song -H 'Content-Type: application/json' -d '{"id":"1365914380","level":"exhigh"}'
 ```
 
-### 注意
+### 部署顺序与注意事项
 
-- Cookie 会过期，失效后播放器解析失败（前端会自动跳过该曲），更新 `cookie.txt` 后重启服务即可
-- 博客后端通过 `MUSIC_API_URL` 环境变量定位解析服务（默认 `http://127.0.0.1:5000`），音质可用 `MUSIC_QUALITY` 覆盖
+1. **先启动解析服务，再启动（或重启）博客后端**：后端歌单解析失败的结果**不会缓存**（全 null 自动跳过缓存以便重试），但为避免请求堆积仍建议先起解析服务
+2. Cookie 会过期：失效后更新 `netease_url/cookie.txt` 并重启解析服务即可
+3. 博客后端通过 `MUSIC_API_URL` 环境变量定位解析服务（默认 `http://127.0.0.1:5000`），音质可用 `MUSIC_QUALITY` 覆盖
+4. 后台「网站信息 → 音乐配置」填写网易云歌单 ID 并开启播放器
 
 ---
 
