@@ -52,8 +52,17 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json({ limit: '2mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '2mb' }));
+
+// node-fetch v3 已移除 timeout 选项，用 AbortSignal 实现真正的超时保护
+// （Node 16.17+ / 18+ 支持 AbortSignal.timeout；旧版本自动降级为无超时）
+async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
+  const signal = (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function')
+    ? AbortSignal.timeout(timeoutMs)
+    : options.signal;
+  return fetch(url, { ...options, signal });
+}
 
 // 请求日志（调试用）
 if (process.env.NODE_ENV !== 'production') {
@@ -107,6 +116,12 @@ const LOGIN_MAX_ATTEMPTS = 10;
 function loginRateLimit(req, res, next) {
   const ip = req.ip;
   const now = Date.now();
+  // 顺带清理过期记录，防止 Map 无限增长
+  if (loginAttempts.size > 1000) {
+    for (const [k, v] of loginAttempts) {
+      if (now > v.resetAt) loginAttempts.delete(k);
+    }
+  }
   const record = loginAttempts.get(ip) || { count: 0, resetAt: now + LOGIN_WINDOW };
   if (now > record.resetAt) {
     record.count = 0;
@@ -513,8 +528,7 @@ async function locateCityByIp(ip) {
   }
 
   try {
-    const fetch = (await import('node-fetch')).default;
-    const response = await fetch(`https://ip-api.com/json/${ip}?lang=zh-CN&fields=status,city`, { timeout: 5000 });
+    const response = await fetchWithTimeout(`https://ip-api.com/json/${ip}?lang=zh-CN&fields=status,city`, {}, 5000);
     if (!response.ok) return null;
     const data = await response.json();
     if (data.status !== 'success' || !data.city) return null;
@@ -572,8 +586,7 @@ app.get('/api/weather', async (req, res) => {
   try {
     console.log(`[天气 API] 请求地址: ${url}`);
 
-    const fetch = (await import('node-fetch')).default;
-    const response = await fetch(url, { timeout: 10000 });
+    const response = await fetchWithTimeout(url, {}, 10000);
 
     console.log(`[天气 API] 响应状态: ${response.status}`);
 
@@ -614,6 +627,45 @@ app.get('/api/weather', async (req, res) => {
 // ========== 网易云音乐歌单代理 ==========
 const musicCache = new Map();
 const MUSIC_CACHE_TTL = 10 * 60 * 1000;
+const MUSIC_CACHE_MAX = 100;
+
+// 写入歌单缓存：先淘汰过期项，仍超容量则删除最旧条目（与天气缓存策略一致）
+function setMusicCache(id, data) {
+  const now = Date.now();
+  for (const [k, v] of musicCache) {
+    if (now - v.at >= MUSIC_CACHE_TTL) musicCache.delete(k);
+  }
+  if (musicCache.size >= MUSIC_CACHE_MAX) {
+    const oldest = musicCache.keys().next().value;
+    if (oldest !== undefined) musicCache.delete(oldest);
+  }
+  musicCache.set(id, { data, at: now });
+}
+
+// 网易云解析服务（Netease_url，本机部署）：
+// 用黑胶会员 Cookie 走官方加密接口解析真实可播放 URL，解决外链对 VIP 歌曲失效问题
+const MUSIC_API_URL = process.env.MUSIC_API_URL || 'http://127.0.0.1:5000';
+const MUSIC_QUALITY = process.env.MUSIC_QUALITY || 'exhigh';
+
+// 解析单曲播放 URL（失败返回 null，由前端自动跳过该曲）
+async function resolveTrackUrl(id) {
+  try {
+    const response = await fetchWithTimeout(`${MUSIC_API_URL}/song`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, level: MUSIC_QUALITY })
+    }, 15000);
+    if (!response.ok) return null;
+    const json = await response.json();
+    const url = json?.data?.url;
+    if (!url) return null;
+    // 网易返回 http 直链，统一升级为 https，避免 https 页面混合内容被拦截
+    return url.replace(/^http:\/\//, 'https://');
+  } catch (err) {
+    console.warn('[音乐] 解析曲目失败:', id, err.message);
+    return null;
+  }
+}
 
 app.get('/api/music/playlist', async (req, res) => {
   const id = String(req.query.id || '').trim();
@@ -627,35 +679,87 @@ app.get('/api/music/playlist', async (req, res) => {
   }
 
   try {
-    const fetch = (await import('node-fetch')).default;
-    const response = await fetch(`https://music.163.com/api/playlist/detail?id=${id}`, {
+    const response = await fetchWithTimeout(`https://music.163.com/api/playlist/detail?id=${id}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
         'Referer': 'https://music.163.com/'
-      },
-      timeout: 15000
-    });
+      }
+    }, 15000);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const json = await response.json();
     if (json.code !== 200 || !json.result) throw new Error('歌单不存在或获取失败');
 
+    const tracks = (json.result.tracks || []).map(t => ({
+      id: t.id,
+      name: t.name,
+      artist: (t.artists || []).map(a => a.name).join(' / '),
+      duration: t.duration || 0,
+      url: null
+    }));
+
+    // 并行解析全部曲目的真实播放 URL（黑胶会员可解 VIP 歌；失败保留 null 由前端跳过）
+    await Promise.allSettled(tracks.map(async t => {
+      t.url = await resolveTrackUrl(t.id);
+    }));
+
     const data = {
       id: json.result.id,
       name: json.result.name,
       cover: json.result.coverImgUrl || '',
-      tracks: (json.result.tracks || []).map(t => ({
-        id: t.id,
-        name: t.name,
-        artist: (t.artists || []).map(a => a.name).join(' / '),
-        duration: t.duration || 0
-      }))
+      tracks
     };
-    musicCache.set(id, { data, at: Date.now() });
+    // 全部曲目解析失败（解析服务不可用/超时）时不缓存，下次请求立即重试，
+    // 避免失败结果被缓存 10 分钟导致部署后长时间无法播放
+    if (tracks.some(t => t.url)) {
+      setMusicCache(id, data);
+    } else {
+      console.warn('[音乐] 歌单全部曲目解析失败，跳过缓存以便重试:', id);
+    }
     res.json({ success: true, data });
   } catch (err) {
     console.error('[音乐] 获取歌单失败:', err.message);
     res.status(500).json({ success: false, message: '获取歌单失败，请检查歌单 ID' });
+  }
+});
+
+// 歌词缓存（10 分钟 TTL，容量上限 100）
+const lyricCache = new Map();
+const LYRIC_CACHE_TTL = 10 * 60 * 1000;
+
+app.get('/api/music/lyric', async (req, res) => {
+  const id = String(req.query.id || '').trim();
+  if (!/^\d{1,20}$/.test(id)) {
+    return res.status(400).json({ success: false, message: '非法的歌曲 ID' });
+  }
+
+  const cached = lyricCache.get(id);
+  if (cached && Date.now() - cached.at < LYRIC_CACHE_TTL) {
+    return res.json({ success: true, data: cached.data });
+  }
+
+  try {
+    const response = await fetchWithTimeout(`${MUSIC_API_URL}/song`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, type: 'lyric' })
+    }, 15000);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const json = await response.json();
+
+    const data = {
+      lyric: json?.data?.lrc?.lyric || json?.data?.lyric || '',
+      tlyric: json?.data?.tlyric?.lyric || json?.data?.tlyric || ''
+    };
+    lyricCache.set(id, { data, at: Date.now() });
+    if (lyricCache.size > 100) {
+      const oldest = lyricCache.keys().next().value;
+      if (oldest !== undefined) lyricCache.delete(oldest);
+    }
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('[音乐] 获取歌词失败:', err.message);
+    res.status(500).json({ success: false, message: '歌词获取失败' });
   }
 });
 

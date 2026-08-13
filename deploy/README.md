@@ -1,5 +1,48 @@
 # 宝塔面板部署指南
 
+## 网易云音乐解析服务（Netease_url）
+
+播放器音频由 `netease_url/` 目录下的解析服务供源（黑胶会员 Cookie 走官方加密接口解析真实播放 URL，VIP 歌也能播）。
+
+### 前提
+
+- 服务器安装 Python 3.7+（宝塔软件商店 → Python项目管理器）
+- 准备网易云网页版登录 Cookie（登录 music.163.com → F12 → Network → 复制任意请求的 Cookie 值）
+
+### 部署步骤
+
+```bash
+cd /www/wwwroot/youyou-homepage/netease_url
+# 1. 安装依赖
+pip3 install -r requirements.txt
+# 2. 写入你的 Cookie（cookie.txt 不入库，需手动放置；注意 Cookie 过期后需更新）
+vi cookie.txt
+# 3. 确认配置（默认音质 exhigh；如需无损改为 lossless 并编辑 .env）
+```
+
+启动（宝塔 Python项目管理器 或 systemd 均可，命令示例）：
+
+```bash
+cd /www/wwwroot/youyou-homepage/netease_url
+nohup python3 main.py > music_api.log 2>&1 &
+```
+
+服务只监听 `127.0.0.1:5000`，仅本机博客后端调用，不对外暴露。
+
+### 验证
+
+```bash
+curl http://127.0.0.1:5000/health          # cookie_status 应为 valid
+curl -X POST http://127.0.0.1:5000/song -H 'Content-Type: application/json' -d '{"id":"1365914380","level":"exhigh"}'
+```
+
+### 注意
+
+- Cookie 会过期，失效后播放器解析失败（前端会自动跳过该曲），更新 `cookie.txt` 后重启服务即可
+- 博客后端通过 `MUSIC_API_URL` 环境变量定位解析服务（默认 `http://127.0.0.1:5000`），音质可用 `MUSIC_QUALITY` 覆盖
+
+---
+
 ## 一键部署说明
 
 ### 脚本功能

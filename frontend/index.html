@@ -1,36 +1,34 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title id="page-title">加载中...</title>
-    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%233b82f6'/%3E%3Ctext x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-family='sans-serif'%3E%E6%82%A0%3C/text%3E%3C/svg%3E">
+    <link rel="stylesheet" href="style.css?v=28">
     <link rel="stylesheet" href="fonts/lxgw/lxgw-wenkai.css">
-    <link rel="stylesheet" href="blog.css?v=2">
+    <link rel="stylesheet" href="blog.css?v=28">
 </head>
 <body>
     <div class="bg-dots"></div>
     <div id="bg-wallpaper"></div>
 
     <main class="container">
-        <!-- 顶部信息栏 -->
-        <div class="top-bar">
+        <header class="hero-section" data-reveal>
             <div class="site-title-box">
                 <h1 class="site-title" id="site-title">悠悠の小站</h1>
             </div>
+            <span class="greeting-badge" id="greeting"></span>
             <div class="weather-box" id="weather-box">
                 <span class="weather-icon">☀</span>
                 <span class="weather-text">加载中...</span>
             </div>
-        </div>
-
-        <header class="hero-section">
             <p class="hitokoto" id="site-subtitle">加载中...</p>
         </header>
 
         <!-- 主要内容区 -->
-        <div class="main-grid">
-            <!-- 左侧：图片 + 外链 -->
+        <div class="main-grid" data-reveal>
+            <!-- 左侧：图片 + 外链 + 动态 -->
             <div class="left-column">
                 <div class="card gallery-card">
                     <div id="anime-img" class="api-image" onclick="openGalleryArticle()">
@@ -41,7 +39,7 @@
                     </div>
                     <div class="image-info">
                         <button class="refresh-btn" onclick="refreshImage()" title="换一张">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <polyline points="23 4 23 10 17 10"></polyline>
                                 <polyline points="1 20 1 14 7 14"></polyline>
                                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
@@ -57,9 +55,17 @@
                         <!-- 动态加载 -->
                     </div>
                 </div>
+
+                <!-- 最近动态 -->
+                <section class="activity-section">
+                    <h2 class="section-title">最近动态</h2>
+                    <div class="activity-list" id="activity-list">
+                        <!-- 动态加载 -->
+                    </div>
+                </section>
             </div>
 
-            <!-- 右侧：个人简介 -->
+            <!-- 右侧：个人简介 + 音乐 + 数据 -->
             <div class="right-column">
                 <div class="card intro-card">
                     <div class="avatar-wrapper">
@@ -73,6 +79,34 @@
                         <div class="tag-group" id="tag-group">
                             <!-- 动态加载 -->
                         </div>
+                    </div>
+                </div>
+
+                <!-- 音乐播放器卡片 -->
+                <div class="card music-player" id="music-player" style="display: none;">
+                    <h3 class="card-small-title">正在播放</h3>
+                    <div class="music-main">
+                        <img id="music-cover" class="music-cover" src="" alt="" title="歌单">
+                        <div class="music-info">
+                            <div id="music-name" class="music-name">未播放</div>
+                            <div id="music-artist" class="music-artist"></div>
+                        </div>
+                        <button id="music-lyric-btn" class="music-btn" title="歌词">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                        </button>
+                        <button id="music-toggle" class="music-btn music-toggle" title="播放/暂停">
+                            <svg id="music-play-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                            <svg id="music-pause-icon" viewBox="0 0 24 24" fill="currentColor" style="display: none;"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+                        </button>
+                    </div>
+                    <div class="music-lyric-preview" id="music-lyric-preview" title="点击查看完整歌词"></div>
+                    <audio id="music-audio"></audio>
+                    <div class="music-playlist" id="music-playlist">
+                        <div class="music-playlist-header">
+                            <span class="music-playlist-title" id="music-playlist-name">歌单</span>
+                            <span class="music-playlist-count" id="music-playlist-count"></span>
+                        </div>
+                        <ul class="music-playlist-list" id="music-playlist-list"></ul>
                     </div>
                 </div>
 
@@ -97,16 +131,8 @@
             </div>
         </div>
 
-        <!-- 最近动态 -->
-        <section class="activity-section">
-            <h2 class="section-title">最近动态</h2>
-            <div class="activity-list" id="activity-list">
-                <!-- 动态加载 -->
-            </div>
-        </section>
-
         <!-- 博客 -->
-        <section class="blog-section">
+        <section class="blog-section" data-reveal>
             <div class="section-header">
                 <h2 class="section-title">博客</h2>
                 <a href="blog.html" class="blog-more">全部文章 →</a>
@@ -115,35 +141,50 @@
                 <!-- 动态加载 -->
             </div>
         </section>
+
+        <!-- 页脚 -->
+        <footer class="site-footer" data-reveal>
+            <span id="footer-copyright"></span>
+            <span class="footer-sep">·</span>
+            <span id="footer-runtime"></span>
+        </footer>
     </main>
 
     <!-- Sakana 挂件 -->
     <div id="sakana-widget-container"></div>
     <div id="sakana-widget-left"></div>
 
-    <!-- 音乐播放器（底部悬浮） -->
-    <div id="music-player" class="music-player" style="display: none;">
-        <img id="music-cover" class="music-cover" src="" alt="">
-        <div class="music-info">
-            <div id="music-name" class="music-name">未播放</div>
-            <div id="music-artist" class="music-artist"></div>
+    <!-- 歌词浮层 -->
+    <div class="lyric-overlay" id="lyric-overlay" style="display: none;">
+        <div class="lyric-panel">
+            <div class="lyric-header">
+                <img id="lyric-cover" class="lyric-cover" src="" alt="">
+                <div class="lyric-title">
+                    <div class="lyric-name" id="lyric-name">-</div>
+                    <div class="lyric-artist" id="lyric-artist">-</div>
+                </div>
+                <button class="lyric-close" id="lyric-close" title="关闭" aria-label="关闭歌词">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="lyric-body" id="lyric-body"></div>
+            <div class="lyric-controls">
+                <button id="lyric-prev" class="music-btn" title="上一首">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+                </button>
+                <button id="lyric-toggle" class="music-btn music-toggle" title="播放/暂停">
+                    <svg id="lyric-play-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    <svg id="lyric-pause-icon" viewBox="0 0 24 24" fill="currentColor" style="display: none;"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+                </button>
+                <button id="lyric-next" class="music-btn" title="下一首">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>
+                </button>
+            </div>
         </div>
-        <div class="music-controls">
-            <button id="music-prev" class="music-btn" title="上一首">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
-            </button>
-            <button id="music-toggle" class="music-btn music-toggle" title="播放/暂停">
-                <svg id="music-play-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                <svg id="music-pause-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="display: none;"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
-            </button>
-            <button id="music-next" class="music-btn" title="下一首">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>
-            </button>
-        </div>
-        <audio id="music-audio"></audio>
     </div>
 
     <script src="lib/sakana.min.js"></script>
-    <script src="app.js?v=2"></script>
+    <script src="music.js?v=28"></script>
+    <script src="app.js?v=28"></script>
 </body>
 </html>

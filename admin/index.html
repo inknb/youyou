@@ -6,17 +6,28 @@
     <title>后台管理 | 悠悠の主页</title>
     <style>
         :root {
-            --bg-color: #fcfdfe;
-            --primary-blue: #02539a;
-            --text-main: #1e293b;
-            --text-sub: #64748b;
-            --card-bg: rgba(255, 255, 255, 0.9);
-            --radius-lg: 20px;
-            --radius-sm: 12px;
-            --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.06);
-            --danger: #ef4444;
-            --success: #22c55e;
-            --warning: #f59e0b;
+            --bg-color: #f6f7f9;
+            --bg-soft: #eef0f4;
+            /* 保持变量名兼容 admin.js 引用，值统一为前台沉稳蓝 */
+            --primary-blue: #2563eb;
+            --primary: #3b82f6;
+            --primary-soft: #eff6ff;
+            --primary-border: #dbeafe;
+            --text-main: #2b2f38;
+            --text-sub: #68707c;
+            --text-faint: #8791a3;
+            --card-bg: #ffffff;
+            --card-border: #e6e8ee;
+            --card-border-strong: #d8dce4;
+            --radius-lg: 16px;
+            --radius-sm: 10px;
+            --shadow-soft: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.05);
+            --shadow-card: 0 4px 14px rgba(16, 24, 40, 0.06);
+            --shadow-hover: 0 8px 22px rgba(16, 24, 40, 0.09);
+            --danger: #dc2626;
+            --success: #16a34a;
+            --warning: #d97706;
+            --ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
         }
 
         * {
@@ -26,165 +37,215 @@
         }
 
         body {
-            background: linear-gradient(135deg, #f0f4f8 0%, #e8eef5 100%);
+            background: var(--bg-color);
             color: var(--text-main);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
             line-height: 1.6;
             min-height: 100vh;
         }
 
-        /* 侧边栏 */
+        ::selection {
+            background: rgba(59, 130, 246, 0.18);
+            color: #1e3a8a;
+        }
+
+        :focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+            border-radius: 6px;
+        }
+
+        :focus:not(:focus-visible) {
+            outline: none;
+        }
+
+        /* ========== 侧边栏 ========== */
+
         .admin-layout {
             display: flex;
             min-height: 100vh;
         }
 
         .sidebar {
-            width: 260px;
+            width: 250px;
             background: var(--card-bg);
-            backdrop-filter: blur(20px);
-            border-right: 1px solid rgba(0,0,0,0.05);
-            padding: 30px 20px;
+            border-right: 1px solid var(--card-border);
+            padding: 28px 18px;
             position: fixed;
             height: 100vh;
             overflow-y: auto;
+            display: flex;
+            flex-direction: column;
         }
 
         .sidebar-header {
-            margin-bottom: 40px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid rgba(0,0,0,0.06);
+            margin-bottom: 28px;
+            padding-bottom: 18px;
+            border-bottom: 1px solid var(--card-border);
         }
 
         .sidebar-title {
-            font-size: 1.4rem;
+            font-size: 1.3rem;
             font-weight: 700;
             color: var(--primary-blue);
             display: flex;
             align-items: center;
             gap: 10px;
+            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+            letter-spacing: 1px;
         }
 
         .sidebar-subtitle {
-            font-size: 0.85rem;
-            color: var(--text-sub);
-            margin-top: 5px;
+            font-size: 0.82rem;
+            color: var(--text-faint);
+            margin-top: 4px;
         }
 
         .nav-menu {
             list-style: none;
+            flex: 1;
         }
 
         .nav-item {
-            margin-bottom: 8px;
+            margin-bottom: 4px;
         }
 
         .nav-link {
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 14px 16px;
+            padding: 11px 14px;
             border-radius: var(--radius-sm);
             color: var(--text-sub);
             text-decoration: none;
             font-weight: 500;
-            transition: all 0.3s ease;
+            font-size: 0.92rem;
+            transition: background 0.25s var(--ease), color 0.25s var(--ease);
             cursor: pointer;
         }
 
-        .nav-link:hover,
+        .nav-link:hover {
+            background: var(--bg-soft);
+            color: var(--text-main);
+        }
+
         .nav-link.active {
-            background: var(--primary-blue);
-            color: white;
-            box-shadow: 0 4px 15px rgba(2, 83, 154, 0.3);
+            background: var(--primary-soft);
+            color: var(--primary-blue);
+            font-weight: 600;
         }
 
         .nav-icon {
-            font-size: 1.2rem;
+            font-size: 1.05rem;
         }
 
-        /* 主内容区 */
+        /* ========== 主内容区 ========== */
+
         .main-content {
             flex: 1;
-            margin-left: 260px;
-            padding: 40px;
-            max-width: calc(100% - 260px);
+            margin-left: 250px;
+            padding: 36px 40px;
+            max-width: calc(100% - 250px);
         }
 
         .page-header {
-            margin-bottom: 30px;
+            margin-bottom: 26px;
         }
 
         .page-title {
-            font-size: 1.8rem;
+            font-size: 1.6rem;
             font-weight: 700;
             color: var(--text-main);
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
 
         .page-desc {
             color: var(--text-sub);
+            font-size: 0.92rem;
         }
 
-        /* 卡片 */
+        /* ========== 卡片 ========== */
+
         .card {
             background: var(--card-bg);
+            border: 1px solid var(--card-border);
             border-radius: var(--radius-lg);
             padding: 24px;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
             box-shadow: var(--shadow-soft);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.5);
         }
 
         .card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid rgba(0,0,0,0.06);
+            margin-bottom: 18px;
+            padding-bottom: 14px;
+            border-bottom: 1px dashed var(--card-border-strong);
         }
 
         .card-title {
-            font-size: 1.1rem;
-            font-weight: 600;
+            font-size: 1.05rem;
+            font-weight: 700;
             display: flex;
             align-items: center;
             gap: 8px;
+            color: var(--text-main);
         }
 
-        /* 表单 */
+        .card-title::before {
+            content: '';
+            width: 4px;
+            height: 16px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+
+        /* ========== 表单 ========== */
+
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 18px;
         }
 
         .form-label {
             display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            font-size: 0.9rem;
+            margin-bottom: 7px;
+            font-weight: 600;
+            font-size: 0.88rem;
+            color: var(--text-main);
         }
 
         .form-input,
         .form-textarea,
         .form-select {
             width: 100%;
-            padding: 12px 16px;
-            border: 2px solid #e2e8f0;
+            padding: 10px 14px;
+            border: 1px solid var(--card-border);
             border-radius: var(--radius-sm);
-            font-size: 0.95rem;
+            font-size: 0.92rem;
             font-family: inherit;
-            transition: all 0.3s ease;
-            background: white;
+            transition: border-color 0.25s var(--ease), box-shadow 0.25s var(--ease);
+            background: #fff;
+            color: var(--text-main);
+        }
+
+        .form-input:hover,
+        .form-textarea:hover,
+        .form-select:hover {
+            border-color: var(--card-border-strong);
         }
 
         .form-input:focus,
         .form-textarea:focus,
         .form-select:focus {
             outline: none;
-            border-color: var(--primary-blue);
-            box-shadow: 0 0 0 3px rgba(2, 83, 154, 0.1);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+        }
+
+        .form-input::placeholder,
+        .form-textarea::placeholder {
+            color: var(--text-faint);
         }
 
         .form-textarea {
@@ -195,60 +256,96 @@
         .form-row {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 20px;
+            gap: 18px;
         }
 
-        /* 按钮 */
+        .form-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .form-check input {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary);
+        }
+
+        /* ========== 按钮 ========== */
+
         .btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            padding: 12px 24px;
-            border: none;
+            padding: 10px 20px;
+            border: 1px solid transparent;
             border-radius: var(--radius-sm);
-            font-size: 0.95rem;
+            font-size: 0.92rem;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: background 0.25s var(--ease), border-color 0.25s var(--ease), transform 0.25s var(--ease);
             font-family: inherit;
+            background: var(--bg-soft);
+            color: var(--text-main);
+        }
+
+        .btn:hover {
+            background: #e2e6ec;
+        }
+
+        .btn:active {
+            transform: scale(0.97);
         }
 
         .btn-primary {
             background: var(--primary-blue);
-            color: white;
+            color: #fff;
         }
 
         .btn-primary:hover {
-            background: #014a8a;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(2, 83, 154, 0.3);
+            background: #1d4ed8;
         }
 
         .btn-danger {
             background: var(--danger);
-            color: white;
+            color: #fff;
         }
 
         .btn-danger:hover {
-            background: #dc2626;
+            background: #b91c1c;
         }
 
         .btn-success {
             background: var(--success);
-            color: white;
+            color: #fff;
         }
 
         .btn-success:hover {
-            background: #16a34a;
+            background: #15803d;
         }
 
         .btn-sm {
-            padding: 8px 16px;
-            font-size: 0.85rem;
+            padding: 6px 14px;
+            font-size: 0.84rem;
         }
 
-        /* 表格 */
+        .btn-logout {
+            background: transparent;
+            color: var(--danger);
+            border-color: #fecaca;
+            padding: 7px 14px;
+        }
+
+        .btn-logout:hover {
+            background: #fef2f2;
+            border-color: #fca5a5;
+        }
+
+        /* ========== 表格 ========== */
+
         .data-table {
             width: 100%;
             border-collapse: collapse;
@@ -256,24 +353,30 @@
 
         .data-table th,
         .data-table td {
-            padding: 14px 16px;
+            padding: 12px 14px;
             text-align: left;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid var(--card-border);
+            font-size: 0.9rem;
         }
 
         .data-table th {
             font-weight: 600;
             color: var(--text-sub);
-            font-size: 0.85rem;
-            text-transform: uppercase;
+            font-size: 0.8rem;
             letter-spacing: 0.5px;
+            background: var(--bg-color);
         }
 
-        .data-table tr:hover td {
-            background: #f8fafc;
+        .data-table tbody tr:hover td {
+            background: #fafbfc;
         }
 
-        /* 标签列表 */
+        .data-table td:first-child {
+            border-top-left-radius: 0;
+        }
+
+        /* ========== 标签列表 ========== */
+
         .tag-list {
             display: flex;
             flex-wrap: wrap;
@@ -284,17 +387,19 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            background: #eff6ff;
+            background: var(--primary-soft);
             color: var(--primary-blue);
-            padding: 8px 14px;
+            padding: 7px 14px;
             border-radius: 100px;
-            font-size: 0.9rem;
+            font-size: 0.88rem;
+            font-weight: 600;
+            border: 1px solid var(--primary-border);
         }
 
         .tag-item .remove {
             cursor: pointer;
-            opacity: 0.6;
-            transition: opacity 0.2s;
+            opacity: 0.55;
+            transition: opacity 0.2s var(--ease);
         }
 
         .tag-item .remove:hover {
@@ -304,117 +409,97 @@
         .tag-input-group {
             display: flex;
             gap: 10px;
-            margin-top: 12px;
+            margin-top: 14px;
         }
 
         .tag-input-group .form-input {
             flex: 1;
         }
 
-        /* 外链卡片 - 精美拟态风格 */
+        /* ========== 外链卡片 ========== */
+
         .link-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 24px;
-            padding: 8px;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 14px;
         }
 
         .link-card {
-            position: relative;
             display: flex;
-            flex-direction: column;
             align-items: center;
-            gap: 12px;
-            padding: 24px 16px;
-            background: linear-gradient(145deg, #f5f7fa, #e8ecf1);
-            border-radius: 24px;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 
-                6px 6px 12px rgba(163, 177, 198, 0.4),
-                -6px -6px 12px rgba(255, 255, 255, 0.8),
-                inset 0 0 0 1px rgba(255, 255, 255, 0.5);
-            border: none;
-            overflow: hidden;
-        }
-
-        .link-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 50%;
-            background: linear-gradient(180deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 100%);
-            border-radius: 24px 24px 0 0;
-            pointer-events: none;
+            gap: 14px;
+            padding: 16px;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-sm);
+            transition: border-color 0.25s var(--ease), box-shadow 0.25s var(--ease), transform 0.25s var(--ease);
         }
 
         .link-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 
-                10px 10px 20px rgba(163, 177, 198, 0.5),
-                -10px -10px 20px rgba(255, 255, 255, 0.9),
-                inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+            transform: translateY(-2px);
+            border-color: var(--card-border-strong);
+            box-shadow: var(--shadow-card);
         }
 
         .link-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
-            position: relative;
-            z-index: 1;
+            flex-shrink: 0;
+            background: var(--bg-color);
+            border: 1px solid var(--card-border);
         }
 
         .link-icon img {
-            width: 32px;
-            height: 32px;
+            width: 28px;
+            height: 28px;
             object-fit: contain;
-            filter: grayscale(40%) opacity(0.8);
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.25s var(--ease);
         }
 
         .link-card:hover .link-icon img {
-            filter: grayscale(0%) opacity(1);
-            transform: scale(1.1);
+            transform: scale(1.08);
         }
 
         .link-info {
             flex: 1;
+            min-width: 0;
         }
 
         .link-name {
             font-weight: 600;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
+            font-size: 0.92rem;
         }
 
         .link-url {
-            font-size: 0.85rem;
-            color: var(--text-sub);
+            font-size: 0.8rem;
+            color: var(--text-faint);
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            max-width: 180px;
         }
 
         .link-actions {
             display: flex;
-            gap: 8px;
+            gap: 6px;
+            flex-shrink: 0;
         }
 
         .link-btn {
-            width: 32px;
-            height: 32px;
+            width: 30px;
+            height: 30px;
             border: none;
             border-radius: 8px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.2s;
+            transition: background 0.2s var(--ease), transform 0.2s var(--ease);
         }
 
         .link-btn.edit {
@@ -428,41 +513,282 @@
         }
 
         .link-btn:hover {
-            transform: scale(1.1);
+            transform: scale(1.08);
         }
 
-        /* 响应式 */
-        @media (max-width: 1024px) {
-            .sidebar {
-                width: 100%;
-                height: auto;
-                position: relative;
-            }
-            .main-content {
-                margin-left: 0;
-                max-width: 100%;
-            }
-            .admin-layout {
-                flex-direction: column;
-            }
-            .form-row {
-                grid-template-columns: 1fr;
-            }
+        /* ========== 统计卡片 ========== */
+
+        .stats-grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 14px;
         }
 
-        /* Toast 提示 */
+        .stat-card {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 22px 20px;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-sm);
+            transition: border-color 0.25s var(--ease), box-shadow 0.25s var(--ease), transform 0.25s var(--ease);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--card-border-strong);
+            box-shadow: var(--shadow-card);
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .stat-card[data-color="#3b82f6"] .stat-icon {
+            background: #dbeafe;
+            color: #2563eb;
+        }
+
+        .stat-card[data-color="#22c55e"] .stat-icon {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+
+        .stat-card[data-color="#f59e0b"] .stat-icon {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .stat-card[data-color="#ec4899"] .stat-icon {
+            background: #fce7f3;
+            color: #db2777;
+        }
+
+        .stat-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .stat-value {
+            font-size: 1.7rem;
+            font-weight: 700;
+            color: var(--text-main);
+            line-height: 1;
+            margin-bottom: 5px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .stat-label {
+            font-size: 0.86rem;
+            color: var(--text-sub);
+            font-weight: 500;
+        }
+
+        /* ========== 配置信息卡片 ========== */
+
+        .config-info-card {
+            margin-top: 20px;
+            padding: 20px;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-sm);
+        }
+
+        .config-info-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px dashed var(--card-border-strong);
+            color: var(--primary-blue);
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .config-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
+        }
+
+        .config-info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .config-info-label {
+            font-size: 0.76rem;
+            color: var(--text-faint);
+            letter-spacing: 0.5px;
+        }
+
+        .config-info-value {
+            font-size: 0.98rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        /* ========== 用户信息栏 ========== */
+
+        .user-info {
+            padding: 14px 16px;
+            background: var(--primary-soft);
+            border: 1px solid var(--primary-border);
+            border-radius: var(--radius-sm);
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-details {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            min-width: 0;
+        }
+
+        .user-name {
+            font-weight: 600;
+            color: var(--primary-blue);
+            font-size: 0.9rem;
+        }
+
+        .user-last-login {
+            font-size: 0.73rem;
+            color: var(--text-sub);
+        }
+
+        /* ========== 弹窗 ========== */
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.45);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #fff;
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            width: 90%;
+            max-width: 520px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 50px rgba(16, 24, 40, 0.18);
+        }
+
+        .modal-header {
+            margin-bottom: 18px;
+            padding-bottom: 12px;
+            border-bottom: 1px dashed var(--card-border-strong);
+        }
+
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 22px;
+        }
+
+        /* ========== 登录页 ========== */
+
+        .login-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .login-box {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-lg);
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: var(--shadow-card);
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .login-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--primary-blue);
+            margin-bottom: 6px;
+        }
+
+        .login-subtitle {
+            color: var(--text-sub);
+            font-size: 0.88rem;
+        }
+
+        .login-form .form-group {
+            margin-bottom: 18px;
+        }
+
+        .login-footer {
+            text-align: center;
+            margin-top: 18px;
+            padding-top: 18px;
+            border-top: 1px solid var(--card-border);
+        }
+
+        .login-footer a {
+            color: var(--primary-blue);
+            text-decoration: none;
+        }
+
+        .login-footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* ========== Toast ========== */
+
         .toast {
             position: fixed;
             top: 20px;
             right: 20px;
-            padding: 16px 24px;
+            padding: 13px 20px;
             border-radius: var(--radius-sm);
-            color: white;
+            color: #fff;
             font-weight: 500;
+            font-size: 0.9rem;
             z-index: 1000;
             transform: translateX(150%);
-            transition: transform 0.3s ease;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            transition: transform 0.3s var(--ease);
+            box-shadow: 0 8px 24px rgba(16, 24, 40, 0.18);
         }
 
         .toast.show {
@@ -477,7 +803,8 @@
             background: var(--danger);
         }
 
-        /* 隐藏/显示 */
+        /* ========== 布局工具 ========== */
+
         .section {
             display: none;
         }
@@ -486,152 +813,10 @@
             display: block;
         }
 
-        /* 弹窗 */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 100;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal.show {
-            display: flex;
-        }
-
-        .modal-content {
-            background: white;
-            border-radius: var(--radius-lg);
-            padding: 30px;
-            width: 90%;
-            max-width: 500px;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-
-        .modal-header {
-            margin-bottom: 20px;
-        }
-
-        .modal-title {
-            font-size: 1.3rem;
-            font-weight: 600;
-        }
-
-        .modal-footer {
-            display: flex;
-            justify-content: flex-end;
-            gap: 12px;
-            margin-top: 24px;
-        }
-
-        /* 登录页面 */
-        .login-container {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .login-box {
-            background: var(--card-bg);
-            backdrop-filter: blur(20px);
-            border-radius: var(--radius-lg);
-            padding: 40px;
-            width: 100%;
-            max-width: 400px;
-            box-shadow: var(--shadow-soft);
-            border: 1px solid rgba(255,255,255,0.5);
-        }
-
-        .login-header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .login-title {
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: var(--primary-blue);
-            margin-bottom: 8px;
-        }
-
-        .login-subtitle {
-            color: var(--text-sub);
-            font-size: 0.9rem;
-        }
-
-        .login-form .form-group {
-            margin-bottom: 20px;
-        }
-
-        .login-footer {
-            text-align: center;
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid #e2e8f0;
-        }
-
-        .login-footer a {
-            color: var(--primary-blue);
-            text-decoration: none;
-        }
-
-        .login-footer a:hover {
-            text-decoration: underline;
-        }
-
-        /* 用户信息栏 */
-        .user-info {
-            padding: 16px 20px;
-            background: linear-gradient(135deg, #eff6ff, #dbeafe);
-            border-radius: var(--radius-sm);
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .user-details {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .user-name {
-            font-weight: 600;
-            color: var(--primary-blue);
-        }
-
-        .user-last-login {
-            font-size: 0.75rem;
-            color: var(--text-sub);
-        }
-
-        .btn-logout {
-            background: transparent;
-            color: var(--danger);
-            border: 1px solid var(--danger);
-            padding: 8px 16px;
-        }
-
-        .btn-logout:hover {
-            background: var(--danger);
-            color: white;
-        }
-
-        /* 隐藏主布局 */
         .admin-layout.hidden {
             display: none;
         }
 
-        /* 密码可见性切换 */
         .password-group {
             position: relative;
         }
@@ -657,173 +842,69 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            transition: color 0.2s var(--ease);
         }
 
         .password-toggle:hover {
             color: var(--primary-blue);
         }
 
-        /* 隐藏浏览器自带的密码显示按钮 */
         .form-input::-ms-reveal,
         .form-input::-webkit-credentials-auto-fill-button {
             display: none;
         }
 
-input[type="password"]::-webkit-credentials-auto-fill-button {
+        input[type="password"]::-webkit-credentials-auto-fill-button {
             visibility: hidden;
             pointer-events: none;
             position: absolute;
             right: 0;
         }
 
-        /* 统计卡片拟态风格 */
-        .stats-grid-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 24px;
-            padding: 8px;
+        /* ========== 响应式 ========== */
+
+        @media (max-width: 1024px) {
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+            }
+            .main-content {
+                margin-left: 0;
+                max-width: 100%;
+            }
+            .admin-layout {
+                flex-direction: column;
+            }
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            .nav-menu {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px;
+            }
+            .nav-item {
+                margin-bottom: 0;
+            }
+            .user-info {
+                margin-top: 14px;
+            }
         }
 
-        .stat-card {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            padding: 28px 24px;
-            background: linear-gradient(145deg, #f5f7fa, #e8ecf1);
-            border-radius: 24px;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow:
-                6px 6px 12px rgba(163, 177, 198, 0.4),
-                -6px -6px 12px rgba(255, 255, 255, 0.8),
-                inset 0 0 0 1px rgba(255, 255, 255, 0.5);
-            position: relative;
-            overflow: hidden;
+        @media (max-width: 640px) {
+            .main-content {
+                padding: 22px 16px;
+            }
+            .card {
+                padding: 18px 16px;
+            }
+            .data-table {
+                display: block;
+                overflow-x: auto;
+            }
         }
-
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 50%;
-            background: linear-gradient(180deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 100%);
-            border-radius: 24px 24px 0 0;
-            pointer-events: none;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-4px);
-            box-shadow:
-                10px 10px 20px rgba(163, 177, 198, 0.5),
-                -10px -10px 20px rgba(255, 255, 255, 0.9),
-                inset 0 0 0 1px rgba(255, 255, 255, 0.6);
-        }
-
-        .stat-icon {
-            width: 56px;
-            height: 56px;
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            z-index: 1;
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .stat-card[data-color="#3b82f6"] .stat-icon {
-            background: linear-gradient(135deg, #dbeafe, #bfdbfe);
-            color: #2563eb;
-        }
-
-        .stat-card[data-color="#22c55e"] .stat-icon {
-            background: linear-gradient(135deg, #dcfce7, #bbf7d0);
-            color: #16a34a;
-        }
-
-        .stat-card[data-color="#f59e0b"] .stat-icon {
-            background: linear-gradient(135deg, #fef3c7, #fde68a);
-            color: #d97706;
-        }
-
-        .stat-card[data-color="#ec4899"] .stat-icon {
-            background: linear-gradient(135deg, #fce7f3, #fbcfe8);
-            color: #db2777;
-        }
-
-        .stat-card:hover .stat-icon {
-            transform: scale(1.1);
-        }
-
-        .stat-content {
-            flex: 1;
-            position: relative;
-            z-index: 1;
-        }
-
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--text-main);
-            line-height: 1;
-            margin-bottom: 4px;
-        }
-
-        .stat-label {
-            font-size: 0.9rem;
-            color: var(--text-sub);
-            font-weight: 500;
-        }
-
-        /* 配置信息卡片 */
-        .config-info-card {
-            margin-top: 24px;
-            padding: 24px;
-            background: linear-gradient(145deg, #f5f7fa, #e8ecf1);
-            border-radius: 24px;
-            box-shadow:
-                6px 6px 12px rgba(163, 177, 198, 0.4),
-                -6px -6px 12px rgba(255, 255, 255, 0.8),
-                inset 0 0 0 1px rgba(255, 255, 255, 0.5);
-        }
-
-        .config-info-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 20px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid rgba(0,0,0,0.06);
-            color: var(--primary-blue);
-            font-weight: 600;
-            font-size: 1rem;
-        }
-
-        .config-info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 16px;
-        }
-
-        .config-info-item {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .config-info-label {
-            font-size: 0.8rem;
-            color: var(--text-sub);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .config-info-value {
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--text-main);
-        }
+    
     </style>
 </head>
 <body>
@@ -866,56 +947,59 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
         <!-- 侧边栏 -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <div class="sidebar-title">管理中心</div>
+                <div class="sidebar-title">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                    管理中心
+                </div>
                 <div class="sidebar-subtitle">悠悠の主页后台</div>
             </div>
             <nav>
                 <ul class="nav-menu">
                     <li class="nav-item">
                         <a class="nav-link active" data-section="dashboard">
-                            
+                            <svg class="nav-icon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
                             <span>概览</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" data-section="site">
-                            
+                            <svg class="nav-icon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>
                             <span>网站信息</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" data-section="apis">
-                            
+                            <svg class="nav-icon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                             <span>网站配置</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" data-section="tags">
-                            
+                            <svg class="nav-icon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.5"/></svg>
                             <span>标签管理</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" data-section="links">
-                            
+                            <svg class="nav-icon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                             <span>外链管理</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" data-section="activities">
-                            
+                            <svg class="nav-icon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                             <span>动态管理</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" data-section="blog">
-                            
+                            <svg class="nav-icon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
                             <span>博客管理</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" data-section="account">
-                            
+                            <svg class="nav-icon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                             <span>账户设置</span>
                         </a>
                     </li>

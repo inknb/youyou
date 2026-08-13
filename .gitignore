@@ -1,0 +1,19 @@
+# 依赖与构建
+node_modules/
+*.log
+
+# 网易云解析服务（敏感凭据与运行时产物不入库）
+netease_url/cookie.txt
+netease_url/downloads/
+netease_url/music_api.log
+netease_url/__pycache__/
+
+# 环境与本地配置
+backend/.env
+*.local
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
