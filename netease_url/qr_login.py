@@ -136,7 +136,16 @@ class QRLoginClient:
             print("\n=== 网易云音乐二维码登录 ===")
 
             if self.check_existing_login():
-                choice = input("检测到已有有效登录，是否重新登录？(y/N): ").strip().lower()
+                try:
+                    choice = input("检测到已有有效登录，是否重新登录？(y/N): ").strip().lower()
+                except EOFError:
+                    # 非交互环境（stdin 已关闭或被重定向）无法询问，
+                    # 直接沿用现有登录，避免被外层 except 吞成「未知错误」
+                    print("非交互环境，使用现有登录状态")
+                    return True, None
+                except KeyboardInterrupt:
+                    print("\n用户取消登录")
+                    return False, "用户取消登录"
                 if choice not in ('y', 'yes', '是'):
                     print("使用现有登录状态")
                     return True, None
@@ -198,6 +207,9 @@ class QRLoginClient:
             print("\n❌ 登录超时，请重新尝试")
             return False, "登录超时"
 
+        except KeyboardInterrupt:
+            print("\n用户取消登录")
+            return False, "用户取消登录"
         except APIException as e:
             self.logger.error(f"API 调用失败: {e}")
             return False, f"API 调用失败: {e}"
