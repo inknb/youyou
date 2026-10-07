@@ -699,13 +699,8 @@ def parse_cookie_string(cookie_string: str) -> Dict[str, str]:
     cookie_string = cookie_string.strip()
     if not cookie_string:
         return cookies
-    for sep in (";", "\n"):
-        if sep in cookie_string:
-            pairs = cookie_string.split(sep)
-            break
-    else:
-        pairs = [cookie_string]
-    for pair in pairs:
+    # ``;`` 与 ``\n`` 可能同时出现（浏览器粘贴 / 手工整理），统一按分隔符切开
+    for pair in cookie_string.replace("\n", ";").split(";"):
         pair = pair.strip()
         if not pair or "=" not in pair:
             continue
