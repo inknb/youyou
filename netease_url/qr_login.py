@@ -14,7 +14,7 @@ import shutil
 import logging
 import datetime
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 try:
     from music_api import QRLoginManager, APIException, load_cookies
@@ -143,14 +143,13 @@ class QRLoginClient:
 
             print("\n开始二维码登录流程...")
             print("正在生成二维码...")
-            qr_result = self.qr_manager.create_qr_login()
+            unikey = self.qr_manager.create_qr_login()
 
-            if not qr_result.get('success'):
-                error_msg = f"生成二维码失败: {qr_result.get('message', '未知错误')}"
+            if not unikey:
+                error_msg = "生成二维码失败，请稍后重试"
                 self.logger.error(error_msg)
                 return False, error_msg
 
-            qr_key = qr_result['qr_key']
             print("\n二维码已生成！")
             print("请使用网易云音乐手机 APP 扫描二维码进行登录")
             print("二维码有效期: 3 分钟")
@@ -160,32 +159,30 @@ class QRLoginClient:
             attempt = 0
             while attempt < max_attempts:
                 try:
-                    status_result = self.qr_manager.check_qr_login(qr_key)
+                    code, cookies = self.qr_manager.check_qr_login(unikey)
 
-                    if status_result.get('success'):
-                        status = status_result.get('status')
-                        if status == 'success':
-                            cookie = status_result.get('cookie', '')
-                            if not cookie:
-                                return False, "登录成功但未获取到 Cookie"
-                            if self.save_cookie(cookie):
-                                print("\n✅ 登录成功！Cookie 已保存")
-                                return True, None
-                            return False, "登录成功但 Cookie 保存失败"
+                    if code == 803:
+                        # 登录成功：把 cookie 字典拼成 cookie 字符串保存
+                        cookie_str = self._format_cookies(cookies)
+                        if not cookie_str:
+                            return False, "登录成功但未获取到 Cookie"
+                        if self.save_cookie(cookie_str):
+                            print("\n✅ 登录成功！Cookie 已保存")
+                            return True, None
+                        return False, "登录成功但 Cookie 保存失败"
 
-                        if status == 'waiting' and attempt % 10 == 0:
+                    if code == 801:
+                        if attempt % 10 == 0:
                             print(f"等待扫码中... ({attempt + 1}/{max_attempts})")
-                        elif status == 'scanned':
-                            print("二维码已扫描，请在手机上确认登录")
-                        elif status == 'expired':
-                            print("\n❌ 二维码已过期，请重新尝试")
-                            return False, "二维码已过期"
-                        elif status == 'error':
-                            msg = status_result.get('message', '未知错误')
-                            print(f"\n❌ 登录失败: {msg}")
-                            return False, f"登录失败: {msg}"
+                    elif code == 802:
+                        print("二维码已扫描，请在手机上确认登录")
+                    elif code == 800:
+                        print("\n❌ 二维码已过期，请重新尝试")
+                        return False, "二维码已过期（错误码 800）"
                     else:
-                        self.logger.warning(f"检查登录状态失败: {status_result.get('message', '未知错误')}")
+                        msg = f"登录失败，错误码: {code}"
+                        print(f"\n❌ {msg}")
+                        return False, msg
 
                     time.sleep(5)
                     attempt += 1
@@ -207,6 +204,13 @@ class QRLoginClient:
         except Exception as e:
             self.logger.error(f"登录过程中发生未知错误: {e}")
             return False, f"登录过程中发生未知错误: {e}"
+
+    @staticmethod
+    def _format_cookies(cookies: Optional[Dict[str, str]]) -> str:
+        """把 check_qr_login 返回的 cookie 字典拼成 cookie 字符串"""
+        if not cookies:
+            return ""
+        return ";".join(f"{key}={value}" for key, value in cookies.items() if value)
 
     def save_cookie(self, cookie: str) -> bool:
         """保存 Cookie 到文件"""

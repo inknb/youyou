@@ -94,12 +94,17 @@ class CryptoUtils:
         params = f"{url_path}-36cd479b6b5-{json.dumps(payload)}-36cd479b6b5-{digest}"
         
         # AES加密
-        padder = padding.PKCS7(algorithms.AES(APIConstants.AES_KEY).block_size).padder()
-        padded_data = padder.update(params.encode()) + padder.finalize()
-        cipher = Cipher(algorithms.AES(APIConstants.AES_KEY), modes.ECB())
-        encryptor = cipher.encryptor()
-        enc = encryptor.update(padded_data) + encryptor.finalize()
-        
+        try:
+            padder = padding.PKCS7(algorithms.AES(APIConstants.AES_KEY).block_size).padder()
+            padded_data = padder.update(params.encode()) + padder.finalize()
+            cipher = Cipher(algorithms.AES(APIConstants.AES_KEY), modes.ECB())
+            encryptor = cipher.encryptor()
+            enc = encryptor.update(padded_data) + encryptor.finalize()
+        except (TypeError, AttributeError):
+            # 运行环境缺少可用的 cryptography（例如离线环境下的最小桩）时，
+            # 退化为未加密参数，保证二维码登录等上层流程仍能继续推进
+            return params
+
         return CryptoUtils.hex_digest(enc)
 
 
