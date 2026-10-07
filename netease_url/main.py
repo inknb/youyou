@@ -9,6 +9,7 @@
 """
 
 import logging
+import re
 import sys
 import time
 import traceback
@@ -138,9 +139,15 @@ class MusicAPIService:
             
             # 处理网易云链接
             if 'music.163.com' in id_or_url:
-                index = id_or_url.find('id=') + 3
-                if index > 2:
-                    return id_or_url[index:].split('&')[0]
+                # 查询式链接: ?id=xxx / &id=xxx / #/song?id=xxx
+                match = re.search(r'[?&#]id=([^&#]+)', id_or_url)
+                if match:
+                    return match.group(1)
+                
+                # 路径式链接: /song/<id>、/m/song/<id>、/#/song/<id>
+                match = re.search(r'/(?:m/)?song/(\d+)', id_or_url)
+                if match:
+                    return match.group(1)
             
             # 直接返回ID
             return str(id_or_url).strip()
