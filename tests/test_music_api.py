@@ -71,18 +71,30 @@ class _FakeHTTPClient:
         return _FakeResponse(self.payload, self.headers)
 
 
+class _FakeCrypto:
+    """加密桩：解析契约测试不依赖 cryptography 后端（沙箱里只装 pytest）。"""
+
+    @staticmethod
+    def encrypt_params(url, payload):
+        return "stub-params"
+
+
+def _qr_manager(payload: str, headers: dict | None = None) -> QRLoginManager:
+    manager = QRLoginManager()
+    manager.crypto_utils = _FakeCrypto()
+    manager.http_client = _FakeHTTPClient(payload, headers)
+    return manager
+
+
 def test_qr_login_success_extracts_music_u():
     """check_qr_login 返回 (code, cookies) 二元组；803 时提取 MUSIC_U。"""
-    manager = QRLoginManager()
-    manager.http_client = _FakeHTTPClient('{"code": 803}', {"Set-Cookie": "MUSIC_U=tok123; Path=/"})
-    code, cookies = manager.check_qr_login("unikey-test")
+    code, cookies = _qr_manager('{"code": 803}', {"Set-Cookie": "MUSIC_U=tok123; Path=/"}) \
+        .check_qr_login("unikey-test")
     assert code == 803
     assert cookies["MUSIC_U"] == "tok123"
 
 
 def test_qr_login_waiting_state():
-    manager = QRLoginManager()
-    manager.http_client = _FakeHTTPClient('{"code": 801}')
-    code, cookies = manager.check_qr_login("unikey-test")
+    code, cookies = _qr_manager('{"code": 801}').check_qr_login("unikey-test")
     assert code == 801
     assert cookies == {}
