@@ -265,6 +265,21 @@ class MusicDownloader:
         )
         return self.download_dir / f"{safe}{ext}"
 
+    def _is_download_complete(self, file_path: Path, expected_size: int) -> bool:
+        """判断本地文件是否已是完整的下载结果。
+
+        - 文件不存在 -> False
+        - file_size 未知（<=0）-> 只要文件存在即视为完成（保持原有行为，避免误判）
+        - 否则要求实际大小不小于 API 返回的 file_size，防止半截文件被当成已完成
+        """
+        try:
+            actual_size = file_path.stat().st_size
+        except OSError:
+            return False
+        if expected_size and expected_size > 0:
+            return actual_size >= expected_size
+        return True
+
     # ----------- 下载（同步） -----------
 
     def download_music_file(
@@ -276,9 +291,10 @@ class MusicDownloader:
         try:
             music_info = self.get_music_info(music_id, quality)
             file_path = self._build_file_path(music_info)
+            expected_size = music_info.file_size or 0
 
-            # 已存在则直接返回
-            if file_path.exists():
+            # 已存在且大小与预期一致才直接返回（残留半截文件需重新下载）
+            if self._is_download_complete(file_path, expected_size):
                 return DownloadResult(
                     success=True,
                     file_path=str(file_path),
@@ -289,10 +305,26 @@ class MusicDownloader:
             # 流式下载
             response = requests.get(music_info.download_url, stream=True, timeout=30)
             response.raise_for_status()
-            with open(file_path, "wb") as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
+
+            # 先写临时文件，下载完整后再原子替换，避免再次留下半截文件
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp_fd, tmp_name = tempfile.mkstemp(
+                dir=str(file_path.parent),
+                prefix=f".{file_path.name}.",
+                suffix=".part",
+            )
+            os.close(tmp_fd)
+            tmp_path = Path(tmp_name)
+            try:
+                with open(tmp_path, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                os.replace(tmp_path, file_path)
+            except BaseException:
+                if tmp_path.exists():
+                    tmp_path.unlink()
+                raise
 
             # 写入元数据（失败不影响主流程）
             self._write_metadata_with_ffmpeg(file_path, music_info)
@@ -322,8 +354,9 @@ class MusicDownloader:
         try:
             music_info = self.get_music_info(music_id, quality)
             file_path = self._build_file_path(music_info)
+            expected_size = music_info.file_size or 0
 
-            if file_path.exists():
+            if self._is_download_complete(file_path, expected_size):
                 return DownloadResult(
                     success=True,
                     file_path=str(file_path),
