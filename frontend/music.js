@@ -110,7 +110,9 @@
             audio.addEventListener('loadedmetadata', applyResume);
         }
 
-        if (autoplay) {
+        // 真正的播放闸门：只有用户通过播放器控件主动请求播放时才出声，
+        // 其它调用路径（例如加载失败后自动切下一首）不得在用户未点击播放器时播放
+        if (autoplay && userPlaybackRequested) {
             audio.play().then(() => setMusicPlayIcon(true)).catch(() => setMusicPlayIcon(false));
         }
     }
@@ -389,6 +391,8 @@
                         userPlaybackRequested = true;
                         audio.play().then(() => setMusicPlayIcon(true)).catch(() => {});
                     } else {
+                        // 用户主动暂停：清除“用户请求播放”标志，后续自动流程不得擅自恢复播放
+                        userPlaybackRequested = false;
                         audio.pause();
                         setMusicPlayIcon(false);
                     }
