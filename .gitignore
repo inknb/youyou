@@ -1,6 +1,7 @@
 # 依赖与构建
 node_modules/
 *.log
+__pycache__/
 
 # 网易云解析服务（敏感凭据与运行时产物不入库）
 netease_url/cookie.txt
