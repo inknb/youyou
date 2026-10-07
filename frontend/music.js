@@ -1,7 +1,8 @@
 // ============================================================
 // 跨页面共享音乐播放器（首页 / 博客页共用）
 // 歌曲与播放进度写入 localStorage，跳转页面后自动恢复同一首歌；
-// 受浏览器自动播放策略限制，跳转后需首次点击页面任意处继续播放
+// 受浏览器自动播放策略限制，进入页面后不会自动播放；
+// 只有点击播放器上的控件（播放按钮 / 歌单曲目 / 上一首下一首）才会开始播放
 // ============================================================
 (function () {
     const API_BASE = window.location.origin;
@@ -17,6 +18,7 @@
     let lastStateSave = 0;
     let playlistOpen = false;
     let playlistName = '';
+    let userPlaybackRequested = false;  // 用户是否已通过播放器控件主动请求播放
 
     // 秒 → m:ss
     function formatTime(sec) {
@@ -122,7 +124,7 @@
         trackErrorCount++;
         // 整个歌单都失败则停止尝试
         if (trackErrorCount >= musicTracks.length) return;
-        loadMusicTrack((musicIndex + 1) % musicTracks.length, true);
+        loadMusicTrack((musicIndex + 1) % musicTracks.length, userPlaybackRequested);
     }
 
     // ========== 歌词引擎 ==========
@@ -273,6 +275,7 @@
         `).join('');
         listEl.querySelectorAll('.music-playlist-item').forEach(item => {
             item.addEventListener('click', () => {
+                userPlaybackRequested = true;
                 loadMusicTrack(Number(item.dataset.index), true);
             });
         });
@@ -363,22 +366,9 @@
             } else {
                 startIndex = Math.floor(Math.random() * musicTracks.length);
             }
-            // 尝试自动播放：被浏览器拦截时静默降级，等待用户点击
-            loadMusicTrack(startIndex, true);
-
-            // 首次用户交互（点击/按键页面任意处）时解锁自动播放：
-            // 浏览器自动播放策略禁止无交互的有声播放，第一次交互后立即续播
-            const unlockPlayback = (e) => {
-                if (e.target && e.target.closest && e.target.closest('#music-player')) return;
-                document.removeEventListener('click', unlockPlayback, true);
-                document.removeEventListener('keydown', unlockPlayback, true);
-                const audio = document.getElementById('music-audio');
-                if (musicReady && audio && audio.paused) {
-                    audio.play().then(() => setMusicPlayIcon(true)).catch(() => {});
-                }
-            };
-            document.addEventListener('click', unlockPlayback, true);
-            document.addEventListener('keydown', unlockPlayback, true);
+            // 只加载曲目并恢复上次播放进度，不自动播放：
+            // 播放必须由用户点击播放器控件触发，页面其他位置的交互不会开始播放
+            loadMusicTrack(startIndex, false);
 
             // 事件绑定（只绑定一次）
             if (!player.dataset.bound) {
@@ -396,6 +386,7 @@
                 const doToggle = () => {
                     if (!musicReady) return;
                     if (audio.paused) {
+                        userPlaybackRequested = true;
                         audio.play().then(() => setMusicPlayIcon(true)).catch(() => {});
                     } else {
                         audio.pause();
@@ -404,10 +395,12 @@
                 };
                 const doPrev = () => {
                     if (!musicReady) return;
+                    userPlaybackRequested = true;
                     loadMusicTrack((musicIndex - 1 + musicTracks.length) % musicTracks.length, true);
                 };
                 const doNext = () => {
                     if (!musicReady) return;
+                    userPlaybackRequested = true;
                     loadMusicTrack((musicIndex + 1) % musicTracks.length, true);
                 };
 
